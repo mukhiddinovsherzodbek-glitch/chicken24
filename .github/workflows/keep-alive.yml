@@ -1,0 +1,29 @@
+# Render bepul rejasida xizmat 15 daqiqa so'rovsiz qolsa uxlaydi. Bu workflow har 10 daqiqada /health ga
+# so'rov yuboradi. Manzil koddagi qattiq yozuv emas - GitHub repo variable: RENDER_HEALTH_URL
+# (Settings -> Secrets and variables -> Actions -> Variables), masalan https://chicken24-bot.onrender.com/health
+# Eslatma: GitHub jadvalni kechiktirishi mumkin; repo 60 kun faolsiz qolsa jadval o'chadi.
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /health
+        env:
+          HEALTH_URL: ${{ vars.RENDER_HEALTH_URL }}
+        run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "::warning::RENDER_HEALTH_URL repo variable o'rnatilmagan - so'rov yuborilmadi"
+            exit 0
+          fi
+          # Uxlab qolgan xizmat ~1 daqiqada uyg'onadi - shuning uchun uzoq kutish va qayta urinish
+          curl --fail --silent --show-error --max-time 100 --retry 3 --retry-delay 15 --retry-all-errors "$HEALTH_URL"
+          echo

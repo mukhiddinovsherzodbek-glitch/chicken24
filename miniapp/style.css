@@ -1,0 +1,694 @@
+/* =========================================================
+   Chicken24 Mini App - doim to'q dizayn (Telegram theme'iga bog'liq emas)
+   ========================================================= */
+:root {
+  --bg: #0F1115;
+  --card: #1A1D24;
+  --card-2: #222631;
+  --card-3: #2A2F3B;
+  --accent: #FF7A1A;
+  --accent-2: #FF9A4D;
+  --accent-soft: rgba(255, 122, 26, 0.14);
+  --text: #F2F2F2;
+  --muted: #9AA0AA;
+  --danger: #FF5C5C;
+  --danger-soft: rgba(255, 92, 92, 0.12);
+  --success: #39D98A;
+  --success-soft: rgba(57, 217, 138, 0.12);
+  --border: rgba(255, 255, 255, 0.07);
+  --radius: 16px;
+  --radius-sm: 12px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.25);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Telegram (fullscreen) va qurilma safe-area */
+  --safe-top: calc(max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px));
+  --safe-bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)) + var(--tg-content-safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px));
+  --gutter: 16px;
+
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+button:disabled { cursor: not-allowed; }
+img { display: block; max-width: 100%; }
+[hidden] { display: none !important; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* ---------------- Topbar + bo'lim yorliqlari (birga sticky) ---------------- */
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(15, 17, 21, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: calc(8px + var(--safe-top)) var(--gutter) 4px;
+}
+
+/* Segmentli tugma: Menu | Buyurtmalarim */
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 var(--gutter) 10px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.tab {
+  min-height: 36px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: background-color 0.2s, color 0.2s, transform 0.15s var(--ease);
+}
+.tab:active { transform: scale(0.97); }
+.tab.active {
+  background: linear-gradient(135deg, var(--accent), #FF5E1A);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(255, 122, 26, 0.3);
+}
+
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Logotip: dumaloq, shaffof fon (eski to'q sariq kvadrat va soya olib tashlangan) */
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.accent { color: var(--accent); }
+
+.topbar.inner .brand-logo { width: 36px; height: 36px; }
+.topbar.inner .brand-name { display: none; }
+.topbar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------- Umumiy ---------------- */
+.view {
+  padding: 16px var(--gutter) calc(24px + var(--safe-bottom));
+  outline: none;
+  animation: fadeIn 0.28s var(--ease);
+}
+body.has-cart-bar .view { padding-bottom: calc(96px + var(--safe-bottom)); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { transform: scale(0.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+.section-title { margin: 22px 0 12px; font-size: 18px; font-weight: 700; }
+.section-title:first-child { margin-top: 4px; }
+.muted { color: var(--muted); }
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(255, 122, 26, 0.35), transparent 60%),
+    linear-gradient(135deg, #1F222B, var(--card));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+.hero-title { margin: 0 0 4px; font-size: 20px; font-weight: 800; }
+.hero-sub { margin: 0; color: var(--muted); font-size: 14px; }
+.hero-emoji { position: absolute; right: 12px; bottom: -6px; font-size: 54px; opacity: 0.9; transform: rotate(-12deg); }
+
+/* ---------------- Tugmalar ---------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 650;
+  transition: transform 0.15s var(--ease), background-color 0.2s, opacity 0.2s, box-shadow 0.2s;
+  user-select: none;
+}
+.btn:active:not(:disabled) { transform: scale(0.96); }
+.btn-block { width: 100%; }
+.btn-lg { min-height: 54px; font-size: 16px; border-radius: var(--radius); }
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #FF5E1A);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(255, 122, 26, 0.3);
+}
+.btn-primary:disabled { background: var(--card-3); color: var(--muted); box-shadow: none; }
+.btn-secondary { background: var(--card-2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:disabled { opacity: 0.45; }
+.btn-ghost { background: transparent; color: var(--accent); min-height: 36px; padding: 0 10px; }
+.btn-link { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: var(--card-2);
+  color: var(--text);
+  transition: transform 0.15s var(--ease), background-color 0.2s;
+}
+.icon-btn:active:not(:disabled) { transform: scale(0.9); }
+.icon-btn.danger { background: var(--danger-soft); color: var(--danger); }
+.topbar-back { background: transparent; margin-left: -8px; }
+
+/* ---------------- Kategoriyalar ---------------- */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.cat-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-align: left;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.18s var(--ease), box-shadow 0.2s;
+}
+.cat-card:active { transform: scale(0.96); }
+.cat-info { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; }
+.cat-name { font-size: 15px; font-weight: 700; }
+.cat-count { font-size: 12px; color: var(--muted); }
+.badge-soon {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Rasm + fallback (emoji/gradient) */
+.media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 30% 20%, #3A2A20 0%, #22252E 55%, #1A1D24 100%);
+}
+.media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+.media.loaded img { opacity: 1; }
+/* Emoji faqat rasm umuman yuklanmaganda (qayta urinishlardan keyin) ko'rinadi */
+.media:not(.failed) .media-fallback { visibility: hidden; }
+/* Taom rasmlari kvadrat (600x600) - kesilmasligi kerak */
+.media.item-media { aspect-ratio: 1 / 1; }
+.media-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 44px;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
+}
+
+
+/* ---------------- Taomlar ---------------- */
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.item-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+.item-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 0; }
+.item-name { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+/* Tavsif to'liq ko'rinadi (kesilmaydi) */
+.item-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+/* Tarkib ro'yxati (kombo): har qatorda bitta tarkib, ✓ belgisi bilan */
+.item-contents {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text);
+}
+.item-contents li { display: flex; gap: 6px; align-items: flex-start; overflow-wrap: anywhere; }
+.item-contents li::before {
+  content: "✓";
+  flex: 0 0 auto;
+  color: var(--success);
+  font-weight: 800;
+}
+/* Narx: nom tagida, qalin va kontrastli (#FF9A4D / #1A1D24 ≈ 8:1) */
+.item-price {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--accent-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+/* Variantlar (6 dona / 10 dona / 1 kg) */
+.variant-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.15s var(--ease);
+}
+.chip:active { transform: scale(0.95); }
+.chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-2); }
+.chip-qty {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.tg-phone-btn { margin-top: 6px; padding: 0 4px; min-height: 32px; font-size: 14px; }
+
+/* Tugma kartaning pastida: bir qatordagi kartalarda tugmalar bir chiziqda turadi */
+.item-action { margin-top: auto; padding: 10px 12px 12px; }
+.item-action .btn { width: 100%; min-height: 40px; padding: 0 10px; font-size: 14px; }
+.add-btn { background: var(--accent-soft); color: var(--accent-2); }
+.add-btn:active { background: rgba(255, 122, 26, 0.24); }
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 40px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+  animation: pop 0.25s var(--ease);
+}
+.stepper .icon-btn { width: 34px; height: 34px; background: var(--card-3); font-size: 18px; font-weight: 700; }
+.stepper .icon-btn.inc { background: var(--accent); color: #fff; }
+.stepper .icon-btn:disabled { opacity: 0.35; }
+.stepper .qty { min-width: 24px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stepper.compact { display: inline-flex; min-height: 34px; }
+.stepper.compact .icon-btn { width: 30px; height: 30px; font-size: 16px; }
+
+/* ---------------- Bo'sh holatlar ---------------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 20px;
+  text-align: center;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+.empty-emoji { font-size: 48px; }
+.empty-title { margin: 0; font-size: 18px; font-weight: 700; }
+.empty-text { margin: 0 0 6px; color: var(--muted); }
+
+/* ---------------- Savat ---------------- */
+.card {
+  margin-bottom: 14px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+.card-title { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.line:first-child { padding-top: 0; }
+.line-name { font-weight: 650; overflow-wrap: anywhere; }
+.line-price { color: var(--muted); font-size: 13px; }
+.line-total { font-weight: 800; text-align: right; white-space: nowrap; }
+.line-controls { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.sum-row span:last-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+.total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 16px;
+}
+.payment-note { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); }
+
+/* Yopiq vaqt ogohlantirishi (sarlavha ostida, barcha sahifalarda) */
+.hours-banner {
+  margin: 12px var(--gutter) 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: #FF9A9A;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.total-row b { font-size: 20px; color: var(--accent-2); }
+
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.req { color: var(--accent); }
+
+.input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  background: var(--card-2);
+  font-size: 16px; /* iOS zoom qilmasligi uchun 16px */
+  outline: none;
+  transition: border-color 0.2s, background-color 0.2s, opacity 0.2s;
+}
+.input::placeholder { color: #6C727D; }
+.input:focus { border-color: var(--accent); background: #262A35; }
+.input:disabled { opacity: 0.5; cursor: not-allowed; }
+.input.invalid { border-color: var(--danger); }
+.textarea { resize: vertical; min-height: 92px; line-height: 1.4; }
+.textarea-sm { min-height: 64px; }
+.area-note { margin: -4px 0 12px; }
+
+.phone-field {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--radius-sm);
+  background: var(--card-2);
+  border: 1.5px solid transparent;
+  transition: border-color 0.2s;
+}
+.phone-field:focus-within { border-color: var(--accent); }
+.phone-field.invalid { border-color: var(--danger); }
+.phone-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  user-select: none;
+}
+.phone-field .input { border: 0; background: transparent; padding-left: 6px; letter-spacing: 0.02em; }
+.phone-field .input:focus { background: transparent; }
+
+.field-error { margin: 6px 0 0; font-size: 12.5px; color: var(--danger); min-height: 0; }
+.field-hint { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.counter { float: right; font-weight: 500; }
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+.loc-status:empty { display: none; }
+.loc-status { margin-top: 10px; }
+.loc-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  animation: fadeIn 0.25s var(--ease);
+}
+.loc-box.ok { background: var(--success-soft); color: var(--success); }
+.loc-box.err { background: var(--danger-soft); color: #FF8A8A; flex-wrap: wrap; }
+.loc-box.info { background: var(--card-2); color: var(--muted); }
+.loc-box .grow { flex: 1; min-width: 0; }
+.loc-coords { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.spinner {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.checkout-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  margin: 6px calc(-1 * var(--gutter)) calc(-24px - var(--safe-bottom));
+  padding: 14px var(--gutter) calc(14px + var(--safe-bottom));
+  background: linear-gradient(to bottom, rgba(15, 17, 21, 0), var(--bg) 22%);
+}
+.form-hint { margin: 0 0 8px; text-align: center; font-size: 12.5px; color: var(--muted); }
+.form-hint:empty { display: none; }
+
+/* ---------------- Eslatmalar (bot javobi) ---------------- */
+.notice {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.45;
+  animation: fadeIn 0.25s var(--ease);
+}
+.notice.info { background: var(--accent-soft); color: #FFC59A; }
+.notice.err { background: var(--danger-soft); color: #FF9A9A; }
+
+/* ---------------- Buyurtmalarim ---------------- */
+.order-status { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.order-status.ok { color: var(--success); }
+.order-status.err { color: #FF8A8A; }
+.order-status.wait { color: #FFC59A; }
+.order-card { margin-bottom: 12px; }
+.order-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.order-date { color: var(--muted); font-size: 13px; }
+.order-total { font-weight: 800; color: var(--accent-2); white-space: nowrap; }
+/* Buyurtma tarkibi: har qatorda bitta taom "Nom × 2 — 60 000 so'm" */
+.order-items {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.order-items li { overflow-wrap: anywhere; }
+.order-items .oi-tail { white-space: nowrap; }
+.order-items .oi-sum { color: var(--muted); }
+/* Summalar: Taomlar / Yetkazish / Jami / To'lov */
+.order-sums {
+  margin: 0 0 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.os-row { display: flex; justify-content: space-between; gap: 10px; }
+.os-row span:last-child { white-space: nowrap; }
+.os-total { color: var(--text); font-size: 15px; }
+.os-total b { color: var(--accent-2); font-weight: 800; white-space: nowrap; }
+.order-addr { margin: 0 0 12px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ---------------- Pastki savat tugmasi ---------------- */
+.cart-bar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 30;
+  padding: 10px calc(var(--gutter) + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(var(--gutter) + var(--safe-left));
+  background: linear-gradient(to bottom, rgba(15, 17, 21, 0), rgba(15, 17, 21, 0.95) 35%);
+  transform: translateY(120%);
+  transition: transform 0.35s var(--ease);
+  pointer-events: none;
+}
+.cart-bar.show { transform: translateY(0); pointer-events: auto; }
+.cart-bar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  width: 100%;
+  max-width: 608px;
+  min-height: 54px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent), #FF5E1A);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 10px 28px rgba(255, 122, 26, 0.4);
+  transition: transform 0.15s var(--ease);
+}
+.cart-bar-btn:active { transform: scale(0.97); }
+.cart-bar-total { font-weight: 600; white-space: nowrap; }
+.cart-bar-btn.bump { animation: pop 0.3s var(--ease); }
+
+/* ---------------- Toast ---------------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  top: calc(112px + var(--safe-top)); /* sarlavha + yorliqlar ostida */
+  z-index: 50;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: #2A2F3B;
+  color: var(--text);
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  opacity: 0;
+  transform: translate(-50%, -10px);
+  transition: opacity 0.25s, transform 0.25s var(--ease);
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { border-color: rgba(255, 92, 92, 0.5); }
+
+/* ---------------- Yuklanish ---------------- */
+.loader { display: flex; justify-content: center; gap: 8px; padding: 80px 0; }
+.loader span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bounce 0.9s infinite var(--ease);
+}
+.loader span:nth-child(2) { animation-delay: 0.15s; }
+.loader span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-8px); opacity: 1; } }
+
+.noscript { padding: 24px; text-align: center; }
+
+/* Juda tor ekranlar (320px) */
+@media (max-width: 359px) {
+  :root { --gutter: 12px; }
+  .cat-grid, .item-grid { gap: 10px; }
+  .item-body { padding: 8px 10px 0; }
+  .item-action { padding: 8px 10px 10px; }
+  .brand-name { font-size: 18px; }
+  .stepper .icon-btn { width: 30px; height: 30px; }
+}
+
+@media (min-width: 560px) {
+  .item-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

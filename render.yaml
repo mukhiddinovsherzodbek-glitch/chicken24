@@ -1,0 +1,28 @@
+# Render Blueprint: Chicken24 Telegram bot (webhook rejimi, bepul reja, Frankfurt).
+# Maxfiy qiymatlar (sync: false) bu yerda YO'Q - Render paneli ularni Blueprint yaratishda so'raydi.
+services:
+  - type: web
+    name: chicken24-bot
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot/main.py
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+      - key: WEBAPP_URL
+        value: https://chicken24.pages.dev
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false

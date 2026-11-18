@@ -1,0 +1,13 @@
+# Python 3.12 (3.11+ ham ishlaydi). Sinovdan o'tgan versiyalar: Python 3.12.10.
+# Faqat bot bevosita ishlatadigan kutubxonalar (qolganlari aiogram bilan avtomatik o'rnatiladi).
+aiogram==3.31.0
+# Webhook HTTP serveri (aiogram bilan birga keladi; bevosita ishlatilgani uchun versiya qat'iy)
+aiohttp==3.14.5
+# Lokal baza (SQLite) va server bazasi (PostgreSQL, DATABASE_URL berilganda)
+aiosqlite==0.22.1
+asyncpg==0.32.0
+python-dotenv==1.2.4
+# Admin uchun Excel eksport (/excel)
+openpyxl==3.1.5
+# Vaqt zonasi bazasi (Asia/Samarkand) - Windows'da shart, Linux'da ham zarari yo'q
+tzdata==2026.6

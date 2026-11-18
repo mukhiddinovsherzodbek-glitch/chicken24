@@ -1,0 +1,18 @@
+# Maxfiy sozlamalar
+.env
+
+# Virtual muhit
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Baza va loglar
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+bot.log*
