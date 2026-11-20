@@ -11,6 +11,7 @@ import html
 import logging
 import math
 import time
+import weakref
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -60,6 +61,7 @@ from config import (
 from db import CANCEL_ALREADY, CANCEL_EXPIRED, CANCEL_NOT_FOUND, UNNOTIFIED_BATCH, Database, utc_now
 from i18n import format_price, t
 from menu import MenuError, MenuProvider
+from orderapi import WindowLimiter  # orderapi handlers'ni faqat funksiya ichida import qiladi - aylana yo'q
 from validators import (
     DeliveryArea,
     ValidatedOrder,
@@ -85,6 +87,43 @@ ADMIN_COMMANDS = {"backup", "hisobot", "excel", "excel_bugun", "excel_hafta", "e
 
 # Admin xabarlari uchun til (o'zbekcha qoladi)
 ADMIN_LANG = "uz"
+
+# Flood himoyasi: bitta foydalanuvchidan shu oraliqda ko'pi bilan shuncha xabar/tugma bosish qayta ishlanadi,
+# ortig'i JIM tashlab yuboriladi (har bir xabar bazaga so'rov va Telegram'ga 2-4 chaqiruv degani).
+# Odam qo'lda bunga yetmaydi; Mini App buyurtmasi va kontakt bundan mustasno (ularning o'z cheklovi bor).
+FLOOD_LIMIT = 15
+FLOOD_WINDOW_SECONDS = 10.0
+
+# Admin'ga ogohlantirishlar (rad etilgan buyurtma, xato): bir xil sarlavha + foydalanuvchi shu oraliqda 1 marta,
+# hammasi bo'lib esa ADMIN_NOTICE_BURST[1] soniyada ko'pi bilan ADMIN_NOTICE_BURST[0] ta. Aks holda bitta
+# g'araz foydalanuvchi noto'g'ri buyurtmalar bilan admin chatini to'ldirib, haqiqiy cheklarni ko'mib yuboradi.
+ADMIN_NOTICE_COOLDOWN_SECONDS = 5 * 60
+ADMIN_NOTICE_BURST = (20, 10 * 60.0)
+
+_UI_CACHE_MAX = 50_000
+
+
+class BotState:
+    """Jarayon xotirasidagi holat (bot nusxasiga bog'langan; qayta ishga tushganda nollanadi - zarari yo'q)."""
+
+    def __init__(self) -> None:
+        self.kb_removed: set[int] = set()       # eski pastki klaviaturasi olib tashlangan mijozlar
+        self.menu_lang: dict[int, str] = {}     # mijoz -> menyu tugmasi o'rnatilgan til
+        self.notice_same = WindowLimiter(1, ADMIN_NOTICE_COOLDOWN_SECONDS)
+        self.notice_all = WindowLimiter(*ADMIN_NOTICE_BURST)
+
+
+_bot_states: "weakref.WeakKeyDictionary[Any, BotState]" = weakref.WeakKeyDictionary()
+
+
+def bot_state(bot: Any) -> BotState:
+    try:
+        state = _bot_states.get(bot)
+        if state is None:
+            state = _bot_states[bot] = BotState()
+        return state
+    except TypeError:  # kalit bo'la olmaydigan obyekt (testdagi soxta bot) - holat saqlanmaydi
+        return BotState()
 
 
 # ---------------------------------------------------------------- yordamchilar
@@ -173,21 +212,24 @@ async def order_keyboard(config: Config, db: Database | None, user_id: int, lang
     return InlineKeyboardMarkup(inline_keyboard=[*(extra_rows or []), [button]])
 
 
-async def remove_reply_keyboard(bot: Bot, chat_id: int) -> None:
-    """Eski pastki (reply) klaviaturani olib tashlash: ReplyKeyboardRemove bilan qisqa xabar va darhol o'chirish."""
+async def remove_reply_keyboard(bot: Bot, chat_id: int) -> bool:
+    """Eski pastki (reply) klaviaturani olib tashlash: ReplyKeyboardRemove bilan qisqa xabar va darhol o'chirish.
+    Xabar yuborilgan bo'lsa True."""
     try:
         sent = await bot.send_message(chat_id, "⌛", reply_markup=ReplyKeyboardRemove())
     except Exception:
         logger.exception("Pastki klaviatura olib tashlanmadi (chat_id=%s)", chat_id)
-        return
+        return False
     try:
         await bot.delete_message(chat_id, sent.message_id)
     except Exception:
         pass
+    return True
 
 
-async def set_menu_button(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> None:
-    """Matn maydoni yonidagi menyu tugmasi (shu mijoz chati uchun): "Buyurtma" / "Заказ" -> Mini App."""
+async def set_menu_button(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> bool:
+    """Matn maydoni yonidagi menyu tugmasi (shu mijoz chati uchun): "Buyurtma" / "Заказ" -> Mini App.
+    O'rnatilgan bo'lsa True."""
     lang = i18n.normalize(lang)
     try:
         await bot.set_chat_menu_button(
@@ -197,12 +239,25 @@ async def set_menu_button(bot: Bot, config: Config, db: Database | None, user_id
         )
     except Exception:
         logger.exception("Menyu tugmasi o'rnatilmadi (user_id=%s)", user_id)
+        return False
+    return True
 
 
 async def switch_to_inline(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> None:
-    """Eski mijozni yangi interfeysga o'tkazish: pastki klaviatura olib tashlanadi, menyu tugmasi o'rnatiladi."""
-    await remove_reply_keyboard(bot, user_id)
-    await set_menu_button(bot, config, db, user_id, lang)
+    """Mijozni yangi interfeysga o'tkazish: pastki klaviatura olib tashlanadi, menyu tugmasi o'rnatiladi.
+
+    Har mijoz uchun BIR MARTA (jarayon ishlab turganda): klaviatura bir marta olib tashlanadi, menyu tugmasi esa
+    faqat til o'zgarganda qayta o'rnatiladi. Aks holda har bir oddiy xabarda chatda "⌛" lip etib ko'rinib-yo'qolardi
+    va javobdan oldin Telegram'ga 3 ta ortiqcha so'rov ketardi. Muvaffaqiyatsiz urinish eslab qolinmaydi."""
+    state = bot_state(bot)
+    lang = i18n.normalize(lang)
+    if len(state.kb_removed) > _UI_CACHE_MAX or len(state.menu_lang) > _UI_CACHE_MAX:
+        state.kb_removed.clear()
+        state.menu_lang.clear()
+    if user_id not in state.kb_removed and await remove_reply_keyboard(bot, user_id):
+        state.kb_removed.add(user_id)
+    if state.menu_lang.get(user_id) != lang and await set_menu_button(bot, config, db, user_id, lang):
+        state.menu_lang[user_id] = lang
 
 
 WELCOME_FLAG = "w"  # callback_data "lang:ru:w" - til tanlangach salomlashuv yuboriladi (/start dan)
@@ -256,10 +311,35 @@ def _command_name(text: str | None) -> str | None:
     return text[1:].split(maxsplit=1)[0].split("@", 1)[0].lower() if len(text) > 1 else None
 
 
-class LanguageMiddleware(BaseMiddleware):
-    """Har bir xabar/tugma bosishdan oldin mijoz tilini aniqlaydi va handlerga `lang` beradi.
+def _is_private_chat(event: TelegramObject) -> bool:
+    """Bot faqat shaxsiy chatda ishlaydi. Guruhga qo'shib qo'yilsa: xabarlarga javob bermaydi (aks holda admin
+    guruhda /excel yoki /hisobot yozsa, mijozlar ma'lumoti va tushum guruhga chiqib ketardi)."""
+    if isinstance(event, Message):
+        chat = event.chat
+    elif isinstance(event, CallbackQuery):
+        chat = getattr(event.message, "chat", None)
+    else:
+        return True
+    return chat is None or getattr(chat, "type", "private") == "private"
 
-    Tili tanlanmagan mijoz (yangi yoki eski) nima yozsa yoki bossa ham - avval til tanlash xabari.
+
+async def _answer_quietly(event: TelegramObject) -> None:
+    """Tugma bosilgan bo'lsa - "yuklanmoqda" belgisi qolib ketmasligi uchun bo'sh javob."""
+    if isinstance(event, CallbackQuery):
+        try:
+            await event.answer()
+        except Exception:
+            pass
+
+
+class LanguageMiddleware(BaseMiddleware):
+    """Har bir xabar/tugma bosishdan oldin: chat turi va flood tekshiruvi, so'ng mijoz tilini aniqlab
+    handlerga `lang` beradi.
+
+    0) Shaxsiy chat bo'lmasa (guruh, kanal) - jim (handler ishlamaydi).
+    1) Flood: FLOOD_WINDOW_SECONDS ichida FLOOD_LIMIT tadan ortiq xabar/tugma - ortig'i jim tashlanadi
+       (admin, Mini App buyurtmasi va kontakt mustasno).
+    2) Tili tanlanmagan mijoz (yangi yoki eski) nima yozsa yoki bossa ham - avval til tanlash xabari.
     Istisnolar:
       - til tanlash tugmasining o'zi;
       - Mini App buyurtmasi (web_app_data) - buyurtma yo'qolmasligi uchun: til payload'dan olinadi va saqlanadi;
@@ -267,16 +347,37 @@ class LanguageMiddleware(BaseMiddleware):
       - admin buyruqlari (faqat ADMIN_ID dan).
     """
 
+    def __init__(self) -> None:
+        self._flood = WindowLimiter(FLOOD_LIMIT, FLOOD_WINDOW_SECONDS)
+        self._flood_logged = WindowLimiter(1, 60.0)  # logga har foydalanuvchi uchun daqiqada 1 qator
+
+    def _flooding(self, event: TelegramObject, user: User, config: Config | None) -> bool:
+        if config is not None and user.id == config.admin_id:
+            return False
+        if isinstance(event, Message) and (event.web_app_data is not None or event.contact is not None):
+            return False
+        if self._flood.retry_after(user.id) <= 0:
+            return False
+        if self._flood_logged.retry_after(user.id) <= 0:
+            logger.warning("Flood: user_id=%s juda ko'p xabar yuboryapti - ortig'i tashlab yuborilmoqda", user.id)
+        return True
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        if not _is_private_chat(event):
+            await _answer_quietly(event)
+            return None
         user: User | None = data.get("event_from_user") or getattr(event, "from_user", None)
         db: Database | None = data.get("db")
         if user is None or db is None:
             return await handler(event, data)
+        if self._flooding(event, user, data.get("config")):
+            await _answer_quietly(event)
+            return None
         try:
             lang = await db.get_user_lang(user.id)
         except Exception:
@@ -306,8 +407,10 @@ class LanguageMiddleware(BaseMiddleware):
         return None
 
 
-router.message.outer_middleware(LanguageMiddleware())
-router.callback_query.outer_middleware(LanguageMiddleware())
+# Bitta nusxa: flood hisobi xabarlar va tugma bosishlar uchun UMUMIY
+_middleware = LanguageMiddleware()
+router.message.outer_middleware(_middleware)
+router.callback_query.outer_middleware(_middleware)
 
 
 # ---------------------------------------------------------------- admin cheki (o'zbekcha)
@@ -454,8 +557,14 @@ def build_customer_text(order_id: int, order: ValidatedOrder, lang: str | None =
 
 
 async def notify_admin(bot: Bot, config: Config, title: str, user: User | None, detail: str = "") -> None:
-    """Admin'ga xato haqida log (o'zbekcha). O'zi hech qachon xato tashlamaydi."""
+    """Admin'ga xato haqida log (o'zbekcha). O'zi hech qachon xato tashlamaydi.
+    Cheklangan (ADMIN_NOTICE_*): bir xil ogohlantirish 5 daqiqada 1 marta, hammasi 10 daqiqada 20 tagacha."""
     try:
+        state = bot_state(bot)
+        key = (title, user.id if user is not None else detail[:200])
+        if state.notice_same.retry_after(key) > 0 or state.notice_all.retry_after("all") > 0:
+            logger.info("Admin'ga ogohlantirish yuborilmadi (takror yoki juda ko'p): %s", title)
+            return
         text = f"⚠️ <b>{html.escape(title)}</b>"
         if user is not None:
             text += f"\nFoydalanuvchi: {user_label(user)}"
@@ -746,6 +855,9 @@ async def process_order(
         # Parallel ikkinchi so'rov unique indeksga urilgan bo'lishi mumkin - unda birinchisining natijasi
         same = await existing_outcome(db, user.id, ref, lang)
         if same is not None:
+            # Buyurtma bazada bor (parallel so'rov yozgan yoki yozuv o'tib, javobi yo'qolgan). Chek admin'ga
+            # yetmagan bo'lishi mumkin - fon tekshiruvi bazaga qarab, kerak bo'lsa qayta yuborsin.
+            db.note_unnotified()
             return same
         limiter.release(user.id)
         logger.exception("Buyurtmani bazaga saqlashda xato")

@@ -62,9 +62,21 @@ class GatedRequestHandler(SimpleRequestHandler):
         return await super().handle(request)
 
 
+SERVER_NAME = "chicken24"
+
+
+async def harden_headers(_request: web.Request, response: web.StreamResponse) -> None:
+    """Har bir javobga: server/Python/aiohttp versiyasi oshkor qilinmaydi (aiohttp odatda
+    'Server: Python/3.12 aiohttp/3.x' yuboradi - hujumchiga aniq versiya kerak emas); brauzer javob turini
+    o'zicha taxmin qilmaydi (nosniff)."""
+    response.headers["Server"] = SERVER_NAME
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+
+
 def build_app(dp: Dispatcher, bot: Bot, secret: str, *, ready: asyncio.Event | None = None,
               ready_timeout: float = READY_TIMEOUT_SECONDS, api: Any = None) -> web.Application:
     app = web.Application()
+    app.on_response_prepare.append(harden_headers)
     app.router.add_get(HEALTH_PATH, health)  # aiohttp HEAD ni ham avtomatik qo'shadi
     for one in (api if isinstance(api, (list, tuple)) else [api] if api is not None else []):
         one.register(app)  # Mini App: POST /api/orders, GET /api/order-status (orderapi.py)

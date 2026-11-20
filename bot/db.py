@@ -773,18 +773,19 @@ class Database:
         Shaxsiy ma'lumot (ism, telefon, manzil) qaytmaydi. Bitta ref ham qabul, ham rad yozuviga ega bo'lsa
         (qayta yuborilgan) - keyingisi hisoblanadi. "unknown" - bot bu buyurtmani olmagan.
         """
+        # user_id berilsa - filtr SQL'ning o'zida: boshqa foydalanuvchi xuddi shu ref bilan yozuv qoldirgan bo'lsa ham
+        # (LIMIT 1 unikini tanlab qo'ysa ham) egasining o'z yozuvi topiladi va begonasi hech qachon qaytmaydi.
+        owner_sql, owner_params = ("", ()) if user_id is None else (" AND user_id = ?", (user_id,))
         order = await self._db.fetchone(
-            "SELECT id, status, created_at, user_id FROM orders WHERE client_ref = ? ORDER BY id DESC LIMIT 1",
-            (client_ref,),
+            f"SELECT id, status, created_at, user_id FROM orders WHERE client_ref = ?{owner_sql} "
+            "ORDER BY id DESC LIMIT 1",
+            (client_ref, *owner_params),
         )
         rej = await self._db.fetchone(
-            "SELECT reason, created_at, user_id FROM last_rejections WHERE client_ref = ? "
+            f"SELECT reason, created_at, user_id FROM last_rejections WHERE client_ref = ?{owner_sql} "
             "ORDER BY created_at DESC LIMIT 1",
-            (client_ref,),
+            (client_ref, *owner_params),
         )
-        if user_id is not None:
-            order = order if order is not None and int(order[3]) == user_id else None
-            rej = rej if rej is not None and int(rej[2]) == user_id else None
         if rej is not None and (order is None or datetime.fromisoformat(rej[1]) > datetime.fromisoformat(order[2])):
             return {"status": "rejected", "n": None, "reason": rej[0]}
         if order is not None:

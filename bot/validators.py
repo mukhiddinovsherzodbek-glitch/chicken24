@@ -137,6 +137,19 @@ def _has_control_chars(text: str, allow_newline: bool = False) -> bool:
     return False
 
 
+# Ko'rinmas boshqaruv belgilari: matn yo'nalishini o'zgartiruvchi (U+202E "RLO" - admin chekida matnni teskari
+# ko'rsatib chalg'itadi), nol kenglikdagi bo'shliq, BOM va h.k. Mijoz ularni ko'rmaydi (boshqa ilovadan
+# nusxalaganda ilashib keladi), shuning uchun rad etilmaydi - indamasdan olib tashlanadi.
+# U+200C/U+200D (ZWNJ/ZWJ) qoldiriladi: ular murakkab emoji va ba'zi yozuvlar uchun kerak.
+_INVISIBLE_CHARS = dict.fromkeys(
+    [0x200B, 0x200E, 0x200F, 0xFEFF, *range(0x202A, 0x202F), *range(0x2060, 0x2065), *range(0x2066, 0x206A)]
+)
+
+
+def _strip_invisible(text: str) -> str:
+    return text.translate(_INVISIBLE_CHARS)
+
+
 def _reject_constant(name: str) -> Any:
     # json standart holatda NaN/Infinity ni qabul qiladi - biz rad etamiz
     raise ValueError(f"ruxsat etilmagan qiymat: {name}")
@@ -161,7 +174,7 @@ def _validate_name(value: Any) -> str:
     if not isinstance(value, str):
         raise ValidationError("val.name_missing", "name matn emas")
     # Ortiqcha bo'shliqlarni bittaga qisqartiramiz
-    name = " ".join(value.split())
+    name = " ".join(_strip_invisible(value).split())
     if _has_control_chars(name):
         raise ValidationError("val.name_chars", "name: boshqaruv belgilari")
     if not NAME_MIN <= len(name) <= NAME_MAX:
@@ -195,7 +208,7 @@ def _validate_address(data: dict[str, Any]) -> tuple[str, str | None, float | No
     text = data.get("address_text")
     if not isinstance(text, str):
         raise ValidationError("val.addr_missing", "address_text matn emas")
-    text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = _strip_invisible(text).replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         raise ValidationError("val.addr_missing", "address_text bo'sh")
     if len(text) > ADDRESS_MAX:
@@ -212,7 +225,7 @@ def _validate_optional_text(value: Any, max_len: int, key: str, field: str) -> s
         return None
     if not isinstance(value, str):
         raise ValidationError(f"val.{key}_type", f"{field} matn emas")
-    text = " ".join(value.split())  # yangi qator va ortiqcha bo'shliqlar bitta bo'shliq
+    text = " ".join(_strip_invisible(value).split())  # yangi qator va ortiqcha bo'shliqlar bitta bo'shliq
     if not text:
         return None
     if len(text) > max_len:
@@ -237,14 +250,15 @@ def _validate_items(value: Any, menu: Menu) -> tuple[OrderLine, ...]:
         qty = entry.get("qty")
         if not isinstance(item_id, str) or not item_id or len(item_id) > MAX_ID_LENGTH:
             raise ValidationError("val.cart_broken", f"items[{index}].id noto'g'ri")
+        # item_id - mijozdan kelgan matn: logga !r bilan yoziladi (yangi qator bilan soxta log qatori yasab bo'lmaydi)
         if item_id in seen:
-            raise ValidationError("val.cart_broken", f"takroriy id: {item_id}")
+            raise ValidationError("val.cart_broken", f"takroriy id: {item_id!r}")
         seen.add(item_id)
         if not _is_int(qty) or not QTY_MIN <= qty <= QTY_MAX:
-            raise ValidationError("val.qty", f"{item_id}: qty noto'g'ri ({qty!r})", min=QTY_MIN, max=QTY_MAX)
+            raise ValidationError("val.qty", f"{item_id!r}: qty noto'g'ri ({str(qty)[:40]!r})", min=QTY_MIN, max=QTY_MAX)
         menu_item = menu.items.get(item_id)
         if menu_item is None:
-            raise ValidationError("val.menu", f"menyuda yo'q id: {item_id}", code="menu")
+            raise ValidationError("val.menu", f"menyuda yo'q id: {item_id!r}", code="menu")
         # Narx FAQAT menyudan olinadi; klient yuborgan "price" e'tiborsiz qoladi
         lines.append(OrderLine(item_id=item_id, name=menu_item.name, price=menu_item.price, qty=qty))
     return tuple(lines)

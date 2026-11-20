@@ -326,7 +326,7 @@ class OrderSubmitAPI:
         try:
             raw = body.decode("utf-8")
             data = json.loads(raw)
-        except (UnicodeDecodeError, ValueError):
+        except (UnicodeDecodeError, ValueError, RecursionError):  # RecursionError: minglab ichma-ich "[[[[..."
             return self._json(request, 400, {"error": "bad_request"})
         ref = extract_ref(data) if isinstance(data, dict) else None
         if ref is None:  # idempotentlik uchun ref shart

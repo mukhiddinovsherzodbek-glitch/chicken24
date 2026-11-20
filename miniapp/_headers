@@ -1,0 +1,16 @@
+# Cloudflare Pages sarlavhalari (bu fayl saytda ko'rinmaydi - faqat sozlama).
+#
+# Rasmlar 1 kun brauzer keshida turadi: Mini App qayta ochilganda 60+ ta rasm uchun serverga so'rov
+# yuborilmaydi (tezroq ochiladi, mijoz interneti tejaladi). Kesh muddati tugagach brauzer eski rasmni
+# darhol ko'rsatib, yangisini fonda oladi (stale-while-revalidate).
+#
+# MUHIM: rasmni almashtirsangiz FAYL NOMINI HAM o'zgartiring (masalan burger_v2.webp) va menu.json dagi
+# "image" yo'lini yangilang - aks holda mijozlar eski rasmni 1 kungacha ko'rishi mumkin.
+#
+# index.html, app.js, style.css, menu.json ataylab bu yerda YO'Q: ular har ochilishda tekshiriladi,
+# shuning uchun narx va kod o'zgarishi mijozlarga darhol yetadi.
+/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/images/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

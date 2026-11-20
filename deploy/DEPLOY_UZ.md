@@ -26,6 +26,11 @@ Rejimni muhit o'zgaruvchilari tanlaydi, kod bir xil:
 2. Joylang: `npx wrangler pages deploy miniapp --project-name chicken24 --branch main`
 3. Chiqqan `https://chicken24.pages.dev` (yoki shunga o'xshash) havolani yozib oling — bu **WEBAPP_URL**.
 4. Menyu yoki dizayn o'zgarsa, 2-qadamni qayta bajaring.
+5. **Rasmlar keshi:** `miniapp/_headers` fayli bo'yicha taom va kategoriya rasmlari mijoz telefonida **1 kun**
+   saqlanadi (Mini App qayta ochilganda tez yuklanadi). Shuning uchun rasmni almashtirsangiz **fayl nomini ham
+   o'zgartiring** (masalan `burger_v2.webp`) va `menu.json` dagi `image` yo'lini yangilang — aks holda mijozlar
+   eski rasmni 1 kungacha ko'rishi mumkin. Narx, nom va kod (`menu.json`, `app.js`) keshlanmaydi — darhol yangilanadi.
+6. `index.html` dagi `?v=N` raqamini har kod o'zgarishida oshiring (hamma joyda bir xil bo'lsin — test tekshiradi).
 
 ---
 
@@ -238,7 +243,8 @@ Telegram 50 MB cheklovi shu rejimda ham tekshiriladi (fayl 49 MB dan katta bo'ls
 
 **Nima uchun ikkalasi:** Render bepul rejasida disk vaqtinchalik — har qayta ishga tushishda (deploy,
 uxlash, Render'ning o'zi qayta yoqishi) `chicken24.db` o'chib ketadi. Shuning uchun baza Neon'da (bepul PostgreSQL).
-Render bepul xizmati 15 daqiqa so'rovsiz qolsa uxlaydi — bunga qarshi GitHub Actions har 10 daqiqada `/health` ni chaqiradi.
+Render bepul xizmati 15 daqiqa so'rovsiz qolsa uxlaydi — bunga qarshi bot o'ziga har 8 daqiqada so'rov yuboradi
+(self-ping), qo'shimcha ravishda UptimeRobot va GitHub Actions `/health` ni chaqiradi (E-6, E-10).
 
 Loyihaga qo'shilgan fayllar: `render.yaml` (Render sozlamasi), `requirements.txt` va `.python-version` (ildizda),
 `.github/workflows/keep-alive.yml`, `tools/migrate_sqlite_to_postgres.py`, `bot/webhook.py`, `bot/logsafe.py`.
@@ -318,9 +324,10 @@ Render kodni GitHub'dan oladi. Kompyuterda git o'rnatilgan bo'lsin (https://git-
    **Environment** da `WEBHOOK_URL` ni aynan shu manzilga to'g'rilang.
 5. **Logs** da shular chiqishi kerak:
    ```
+   HTTP server ochildi: port 10000 (/health, webhook /tg/...)
    Baza ulandi: PostgreSQL (ep-....neon.tech/neondb)
-   Rejim: webhook (port 10000)
-   Webhook o'rnatildi: https://chicken24-bot.onrender.com/tg/...
+   Webhook o'rnatildi (/tg/...)
+   Ishga tushdi: rejim=webhook, baza=postgres, self-ping=yoqilgan (har 8 daqiqa)
    ```
 
 **setWebhook** — qo'lda qilish shart emas: bot har ishga tushganda Telegram'ga webhook manzilini va sirni o'zi
@@ -485,6 +492,8 @@ bo'lsa savat bir necha soniyada tozalanadi; olmagan bo'lsa 10 daqiqadan keyin "B
   shu mijoz uchun yangilanadi).
 - **Eski mijozlar:** botga istalgan matn yozsa yoki eski pastki tugma orqali buyurtma bersa — bot pastki
   klaviaturani olib tashlaydi, menyu tugmasini o'rnatadi va inline tugma yuboradi.
+  Klaviatura har mijoz uchun **bir marta** olib tashlanadi (chatda qisqa "⌛" ko'rinib-yo'qoladi), menyu tugmasi
+  esa faqat til o'zgarganda qayta o'rnatiladi. Bot qayta ishga tushsa, har mijozda yana bir martadan takrorlanadi.
 
 **Nega HTTP:** inline/menyu tugmasidan ochilgan Mini App'da `sendData()` ishlamaydi, lekin Telegram **initData**
 beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://chicken24-bot.onrender.com/api/orders`.
@@ -508,6 +517,11 @@ beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://
   **o'sha ref bilan** (server ikkinchi buyurtma yaratmaydi).
 - **Zaxira:** initData bo'sh bo'lsa (eski pastki tugmadan ochilgan) — avvalgi `sendData` yo'li, `?ok=` havolasi va
   holat so'rash ishlayveradi.
+- **Serverni oldindan uyg'otish:** Mini App ochilishi bilan `/health` ga bitta so'rov yuboradi. Render uxlab qolgan
+  bo'lsa, mijoz taom tanlaguncha uyg'onadi va buyurtma kutmasdan o'tadi.
+- **Bekor qilingan buyurtma:** mijoz buyurtmani bot chatida bekor qilib, keyin Mini App'ni menyu tugmasidan ochsa,
+  Mini App oxirgi "Qabul qilindi" buyurtmani serverdan **bir marta** so'raydi va tarixda "Bekor qilindi" ko'rsatadi.
+  Bekor qilish muddati o'tgach (15 daqiqadan keyin) holat yakuniy hisoblanadi va boshqa so'ralmaydi.
 
 **Telegram'da sinash:**
 1. `/start` → til → salomlashuv rasmi ostida "Buyurtma berish"; pastki klaviatura yo'qolgan; matn maydoni yonida "Buyurtma".
@@ -531,3 +545,57 @@ beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://
 4. Eski versiya `/start` da yana pastki klaviaturani yuboradi. Menyu tugmasini hammaga qaytarish uchun
    @BotFather → Bot Settings → Menu Button, yoki shu mijozda `/start` (eski versiya menyu tugmasiga tegmaydi —
    kerak bo'lsa alohida so'rang).
+
+---
+
+## F. Xavfsizlik
+
+### F-1. Bot nimadan himoyalangan
+| Xavf | Himoya |
+|---|---|
+| Narxni o'zgartirib buyurtma berish | Narx va jami summa **faqat** `menu.json` dan hisoblanadi; mijoz yuborgan narx e'tiborsiz |
+| Boshqa odam nomidan buyurtma | `POST /api/orders` Telegram **initData** imzosini tekshiradi (HMAC-SHA256, 24 soat); user_id faqat undan |
+| Soxta Telegram xabari | Webhook manzili sirdan hisoblanadi + `X-Telegram-Bot-Api-Secret-Token` (mos kelmasa `401`) |
+| Begona saytdan so'rov | CORS faqat `WEBAPP_URL` origin'i; Mini App'da qat'iy CSP (skript faqat o'zimizdan va telegram.org) |
+| Takroriy buyurtma | `(user_id, ref)` — bazada unique indeks; takror so'rov avvalgi natijani qaytaradi |
+| Buyurtma spami | Mijozga 30 soniyada 1 ta buyurtma; API'ga daqiqasiga 6 so'rov |
+| Xabar flood'i | Bitta foydalanuvchidan 10 soniyada 15 tadan ortiq xabar/tugma **jim tashlab yuboriladi** (admin va buyurtma mustasno) |
+| Admin chatini to'ldirish | Ogohlantirishlar cheklangan: bir xil sabab + mijoz 5 daqiqada 1 marta, jami 10 daqiqada 20 ta. Buyurtma **cheklari cheklanmaydi** |
+| Excel faylda formula | Mijoz ism/manzil/izohga `=...` yozsa ham Excel'da oddiy matn bo'lib chiqadi (formula bajarilmaydi) |
+| Guruhga qo'shib qo'yish | Bot faqat **shaxsiy chatda** ishlaydi; guruh/kanalda umuman javob bermaydi (admin buyruqlari ham) |
+| Ko'rinmas belgilar bilan chalg'itish | Matn yo'nalishini o'zgartiruvchi va nol kenglikdagi belgilar ism/manzil/izohdan olib tashlanadi |
+| SQL in'eksiya | Hamma so'rov parametrlangan |
+| HTML in'eksiya (chek, xabarlar) | Mijoz matni har doim `html.escape` qilinadi; Mini App'da faqat `textContent` |
+| Ma'lumot loglarga tushishi | Telefon `+998 ** *** ** 67`, token `<BOT_TOKEN>`, baza paroli `***`; server versiyasi javoblarda ko'rinmaydi |
+| Admin buyruqlarini begona ishlatishi | Har buyruq `ADMIN_ID` ni tekshiradi; begonaga bot umuman javob bermaydi |
+
+Testlar: `bot/tests/test_security.py` (har bir himoya uchun) va qolgan `tests/test_*.py`.
+
+### F-2. Mijozga topshirishdan oldin (bir marta)
+1. **@BotFather → `/mybots` → bot → Bot Settings:**
+   - **Allow Groups? → Turn off** (botni guruhga qo'shib bo'lmaydi);
+   - **Group Privacy → Turn on** (odatda yoqiq).
+2. **`ADMIN_ID`** — restoran egasi (yoki operator) Telegram ID si bo'lsin. U botga `/start` yozgan bo'lishi shart.
+   Render → Environment da almashtiriladi.
+3. **Sirlarni yangilang** (ishlab chiqish paytida ular sizning kompyuteringizdan o'tgan):
+   - `BOT_TOKEN`: @BotFather → bot → **API Token → Revoke current token** → yangisini Render'ga yozing;
+   - `WEBHOOK_SECRET`: E-4.1 dagi buyruq bilan yangisini yarating → Render'da almashtiring;
+   - `DATABASE_URL`: Neon → **Roles → Reset password** → yangi manzilni Render'ga yozing.
+   Har almashtirishdan keyin Render xizmatni o'zi qayta ishga tushiradi; `/health` va sinov buyurtma bilan tekshiring.
+4. **Kompyuteringizdagi nusxalarni tozalang:** `bot/.env` (eski token), `bot/chicken24.db` va `bot.log`
+   (mijozlar ismi, telefoni, manzili), admin chatingizdagi `.db` zaxira fayllari.
+5. **Akkauntlar kimniki:** Render, Neon, Cloudflare, GitHub — restoran egasining emailida bo'lgani ma'qul
+   (yoki unga kirish bering). Aks holda bot ishlashi sizning akkauntingizga bog'liq bo'lib qoladi.
+6. **Ikki bosqichli tasdiqlash (2FA)** — shu to'rt akkauntda va admin'ning Telegram akkauntida yoqilsin:
+   kimdir admin Telegram'iga kirsa, hamma mijozlar ma'lumotini (`/excel`, `/backup`) yuklab oladi.
+
+### F-3. Doimiy qoidalar
+- Token, `DATABASE_URL`, `WEBHOOK_SECRET` ni chatga, skrinshotga, git'ga qo'ymang. Oshkor bo'lsa — F-2.3 bo'yicha darhol almashtiring.
+- `/excel` va `/backup` fayllarida mijozlar ma'lumoti bor — boshqalarga yubormang, keraksizlarini o'chiring.
+- GitHub repo **public** bo'lsa kod hammaga ko'rinadi (unda sir yo'q — git tarixi tekshirilgan). UptimeRobot ulangach
+  repo'ni **private** qilib, `keep-alive` workflow'ini o'chirish mumkin (private repo'da u bepul daqiqalardan oshadi).
+- Kodni o'zgartirgach `git push` dan **oldin** testlarni o'tkazing — Render `main` ga tushgan har o'zgarishni darhol joylaydi:
+  ```
+  cd bot
+  Get-ChildItem tests\test_*.py | ForEach-Object { .\venv\Scripts\python.exe $_.FullName | Select-Object -Last 1 }
+  ```

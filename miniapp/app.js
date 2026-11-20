@@ -472,6 +472,8 @@
         reasonCode: REJECT_CODES.includes(o.reasonCode) ? o.reasonCode : '',
         // server birinchi marta "unknown" degan payt (RESULT.noteUnknown)
         unknownSince: typeof o.unknownSince === 'string' ? o.unknownSince : '',
+        // bekor qilish muddati o'tgach server "qabul qilindi" degan - holat yakuniy, qayta so'ralmaydi
+        settled: o.settled === true,
       }))
       .sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0))
       .slice(0, LIMITS.ordersKeep);
@@ -657,12 +659,63 @@
     setTimeout(() => { if (statusPoll.rerender) rerenderQuietly(); }, 0);
   });
 
+  /*
+   * Qabul qilingan buyurtmani mijoz keyin bot chatida BEKOR qilishi mumkin (bot: CANCEL_WINDOW_SECONDS, 5 daqiqa).
+   * Mini App menyu tugmasidan ochilganda havolada natija (?cx=) bo'lmaydi va tarixda "Qabul qilindi" qolib ketardi.
+   * Shuning uchun ochilganda / ekranga qaytganda eng oxirgi "qabul qilindi" buyurtma BIR MARTA serverdan so'raladi
+   * (takroriy so'rash yo'q). Bekor qilish muddati aniq o'tgach javob yana "accepted" bo'lsa - yozuv yakuniy
+   * (settled) deb belgilanadi va boshqa so'ralmaydi. Indamasdan; xato bo'lsa keyingi ochilishda.
+   */
+  const CANCEL_SETTLE_MS = (5 + 10) * 60 * 1000; // bekor qilish muddati + sekin yuborilgan buyurtma uchun zaxira
+  const cancelCheck = { inFlight: false, lastAt: 0 };
+
+  function cancelCheckTarget() {
+    const latest = getOrders()[0];
+    return latest && latest.status === 'ok' && !latest.settled && msSince(latest.date) < STATUS_MAX_ORDER_AGE_MS
+      ? latest : null;
+  }
+
+  async function checkCancelledOnce() {
+    const order = cancelCheckTarget();
+    if (!order || !statusPollEnabled() || cancelCheck.inFlight) return;
+    if (Date.now() - cancelCheck.lastAt < STATUS_MIN_GAP_MS) return;
+    cancelCheck.inFlight = true;
+    cancelCheck.lastAt = Date.now();
+    try {
+      const result = RESULT.statusToResult(order.localId, await fetchOrderStatus(order.localId));
+      if (result && result.kind === 'cx') {
+        if (applyResultObject(result)) rerenderQuietly();
+      } else if (result && result.kind === 'ok' && msSince(order.date) > CANCEL_SETTLE_MS) {
+        storageSet(STORAGE.orders, getOrders().map((o) => (
+          o.localId === order.localId ? Object.assign({}, o, { settled: true }) : o)));
+      }
+    } catch (e) {
+      /* tarmoq xatosi - jim, keyingi ochilishda */
+    } finally {
+      cancelCheck.inFlight = false;
+    }
+  }
+
+  /*
+   * Serverni oldindan "uyg'otish". Render bepul rejasida xizmat uxlab qolgan bo'lishi mumkin (uyg'onishi ~1 daqiqa).
+   * Mini App ochilishi bilan /health ga bitta so'rov ketadi: mijoz taom tanlab bo'lguncha server tayyor turadi va
+   * buyurtma kutmasdan o'tadi (ulanish ham oldindan ochiladi). Javob o'qilmaydi (no-cors), bazaga tegmaydi.
+   */
+  function warmUpServer() {
+    if (!API_BASE || !inTelegram) return;
+    try {
+      fetch(`${API_BASE}/health`, { method: 'GET', mode: 'no-cors', cache: 'no-store', credentials: 'omit' })
+        .catch(() => { /* jim */ });
+    } catch (e) { /* e'tiborsiz */ }
+  }
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       clearTimeout(statusPoll.timer);
       statusPoll.timer = null;
     } else {
       startStatusPolling();
+      checkCancelledOnce();
     }
   });
 
@@ -1799,7 +1852,9 @@
     state.stack = [{ name: 'home' }];
     render(true);
     if (removed) toast(T('toast.pruned'), true);
+    warmUpServer(); // server uxlab qolgan bo'lsa - mijoz taom tanlaguncha uyg'onadi
     startStatusPolling(); // "kutilmoqda" buyurtma bo'lsa - holatni serverdan so'rash
+    checkCancelledOnce(); // oxirgi qabul qilingan buyurtma keyin bekor qilinganmi
   }
 
   // ---------------------------------------------------------------- ish vaqti banneri

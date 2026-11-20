@@ -414,7 +414,8 @@ def test_start_and_til_inline_button_menu_button_and_keyboard_removed():
     # /til: menyu tugmasi yangi tilda, tasdiq ostida inline tugma
     assert all_menus[-1][1].text == "Buyurtma" and parse_qs(urlparse(all_menus[-1][1].web_app.url).query) == {"lang": ["uz"]}
     assert til_msg[2].startswith("✅ Til o'zgartirildi") and order_button(til_msg[3]["reply_markup"]).text == "Buyurtma berish"
-    assert all_removed == [USER, USER]
+    assert all_removed == [USER], "pastki klaviatura bir marta olib tashlanadi (/til da qayta '⌛' yo'q)"
+    assert len(all_menus) == 2, "menyu tugmasi faqat til o'zgarganda qayta o'rnatiladi"
 
 
 def test_old_keyboard_order_still_works_and_migrates_customer():

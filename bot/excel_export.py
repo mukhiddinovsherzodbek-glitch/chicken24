@@ -156,6 +156,16 @@ def _total_row(ws, label: str, label_cols: int, values: dict[int, int], money_co
     return r
 
 
+def _plain_text(ws, row_idx: int, columns: tuple[int, ...]) -> None:
+    """Formula in'eksiyasidan himoya: mijoz yozgan matn (ism, manzil, izoh...) '=' bilan boshlansa openpyxl uni
+    FORMULA deb yozadi va admin faylni ochganda Excel uni bajaradi (=HYPERLINK(...), =cmd|...). Shu ustunlardagi
+    har qanday matn majburan oddiy matn (string) turiga o'tkaziladi - Excel uni hech qachon hisoblamaydi."""
+    for col in columns:
+        cell = ws.cell(row_idx, col)
+        if isinstance(cell.value, str):
+            cell.data_type = "s"
+
+
 def _grey_row(ws, row_idx: int) -> None:
     for cell in ws[row_idx]:
         cell.fill = CANCELLED_FILL
@@ -206,9 +216,9 @@ def build_workbook(orders: list[tuple[dict, list[dict]]], period: ExportRange, g
         ])
         r = ws.max_row
         ws.cell(r, 2).number_format = DATE_FORMAT
-        phone = ws.cell(r, 5)
-        phone.data_type = "s"  # matn: "+998..." boshidagi belgi yo'qolmaydi
-        phone.number_format = "@"
+        # Ism, telefon, username, manzil, uy/qavat, izoh, taomlar - doim oddiy matn (formula emas)
+        _plain_text(ws, r, (4, 5, 6, 7, 8, 9, 11))
+        ws.cell(r, 5).number_format = "@"  # telefon: "+998..." boshidagi belgi yo'qolmaydi
         url = _maps_url(row)
         if url:
             link = ws.cell(r, 10)
@@ -237,6 +247,7 @@ def build_workbook(orders: list[tuple[dict, list[dict]]], period: ExportRange, g
             wi.append([row["id"], when, status, item["name"], int(item["qty"]), int(item["price"]),
                        int(item["line_total"])])
             r = wi.max_row
+            _plain_text(wi, r, (4,))
             wi.cell(r, 2).number_format = DATE_FORMAT
             wi.cell(r, 6).number_format = MONEY_FORMAT
             wi.cell(r, 7).number_format = MONEY_FORMAT
@@ -282,6 +293,7 @@ def build_workbook(orders: list[tuple[dict, list[dict]]], period: ExportRange, g
     top = sorted(qty_by_name.items(), key=lambda kv: (-kv[1], -sum_by_name[kv[0]], kv[0]))[:10]
     for name, qty in top:
         ws3.append([name, qty, sum_by_name[name]])
+        _plain_text(ws3, ws3.max_row, (1,))
         ws3.cell(ws3.max_row, 3).number_format = MONEY_FORMAT
     ws3.append([])
     ws3.append([f"Ish kuni {config.CLOSE_AT:%H:%M} da almashadi. Vaqtlar Samarqand vaqtida."])
