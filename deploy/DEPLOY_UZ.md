@@ -127,6 +127,9 @@ Raqam mijozning Telegram raqami bilan bir xil bo'lsa, admin chekida "✅ (Telegr
 - Mini App natijani **indamasdan** qo'llaydi (xabar bot chatida keladi): qabul qilinsa savat tozalanadi
   va "Buyurtmalarim" da "Qabul qilindi #N" bo'ladi; rad etilsa savat saqlanadi. Bir xil natija har
   ochilishda kelsa ham faqat birinchi marta qo'llanadi (`miniapp/result.js`).
+- **Mini App ochiq turganda** (Render/webhook rejimida) natija havolasiz ham keladi: "tasdiq kutilmoqda"
+  buyurtma bo'lsa Mini App holatni bot serveridan o'zi so'raydi — `GET /api/order-status?ref=...`
+  (batafsil: E-11). Havola (`?ok=` / `?rej=` / `?cx=`) zaxira yo'l sifatida qoladi.
 
 ### Til (o'zbekcha / ruscha)
 - **`/start` har doim avval tilni so'raydi** (til avval saqlangan bo'lsa ham, admin uchun ham):
@@ -420,3 +423,35 @@ hamma bepul xizmatlarni to'xtatadi.
 **4. Qo'lda uyg'otish:** brauzerda `https://chicken24-bot.onrender.com/health` ni oching — 1 daqiqagacha kuting,
 `{"ok": true}` chiqsa bot uyg'ondi. Yoki GitHub → Actions → `keep-alive` → **Run workflow**.
 Bot umuman javob bermasa: Render → `chicken24-bot` → **Manual Deploy → Restart service** (yoki **Deploy latest commit**).
+
+### E-11. Mini App buyurtma holatini serverdan so'raydi (`/api/order-status`)
+**Nima uchun:** buyurtma yuborilgach Mini App yopiladi. Mijoz uni qayta ochsa (masalan, menyu tugmasidan),
+bot unga natija yubora olmaydi — avval "bot javobini kutmoqda" yozuvi qolib ketardi. Endi Mini App
+"kutilmoqda" buyurtma bo'lsa holatni bot serveridan o'zi so'raydi.
+
+**Qanday ishlaydi:**
+- Mini App ochilganda va ekranga qaytganda darhol, keyin **har 4 soniyada**, 2 daqiqadan keyin **har 10 soniyada**,
+  jami **15 daqiqagacha** so'raydi (faqat "kutilmoqda" buyurtma bor bo'lsa; javob kelgach to'xtaydi).
+- Natija **indamasdan** qo'llanadi (`result.js`): qabul qilinsa savat tozalanadi va "Qabul qilindi · #N";
+  rad etilsa savat saqlanadi; bekor qilingan bo'lsa "Bekor qilindi". Toast/banner yo'q.
+- Tarmoq xatosi, 429 yoki 503 bo'lsa jim qayta uriniladi — mijozga xato ko'rsatilmaydi.
+
+**Xavfsizlik (server, `bot/orderapi.py`):**
+- Mijoz Telegram **initData** bilan aniqlanadi (`Authorization: tma <initData>`): imzo bot tokeni bilan
+  tekshiriladi (HMAC-SHA256, constant-time), 24 soatdan eski initData rad etiladi. Foydalanuvchi ID faqat
+  initData dan olinadi — har kim faqat **o'z** buyurtmasini ko'radi.
+- Javob faqat `{"status": "accepted"|"rejected"|"cancelled"|"unknown", "n": raqam, "reason": sabab kodi}` —
+  ism, telefon, manzil yo'q. `unknown` — bot buyurtmani hali olmagan (Mini App kutishda davom etadi).
+- CORS faqat `WEBAPP_URL` origin'i (`https://chicken24.pages.dev`) uchun. Har foydalanuvchiga 2 soniyada 1 so'rov.
+- Baza ulanmagan / bot hali ishga tushayotgan bo'lsa — `503` (`/health` bunga bog'liq emas).
+
+**Sozlama:** server manzili `miniapp/config.js` dagi `API_BASE` da (hozir `https://chicken24-bot.onrender.com`).
+Render manzili o'zgarsa: `config.js` dagi `API_BASE` **va** `miniapp/index.html` dagi CSP `connect-src` ni
+yangilang, `?v=` raqamini oshiring va Mini App'ni qayta joylang (A-bo'lim). `API_BASE` bo'sh bo'lsa so'rash
+o'chadi va natija avvalgidek faqat bot tugmasi havolasidan keladi. Lokal (polling) rejimda bot serveri yo'q —
+shu holda ham havola ishlayveradi.
+
+**Sinash:** Telegram'da buyurtma bering → Mini App yopiladi → bot javobini kutmasdan **darhol** "Buyurtma
+berish" tugmasi bilan Mini App'ni qayta oching → savatda "bot javobini kutmoqda" yozuvi ko'rinadi → bir necha
+soniyada (bot buyurtmani saqlagach) yozuv yo'qoladi, savat bo'shaydi, "Buyurtmalarim" da "Qabul qilindi · #N".
+Mini App'ni yopmasdan boshqa ilovaga o'tib qaytsangiz ham darhol tekshiradi.

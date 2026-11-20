@@ -110,6 +110,10 @@ async def scenario(env: Env) -> dict:
     await db.set_meta("k", "2")
     out["meta"] = await db.get_meta("k")
     out["unnotified"] = len(await db.get_unnotified(datetime.now(timezone.utc)))
+    # Mini App holati (orderapi): o'zi / boshqa foydalanuvchi / noma'lum ref
+    out["order_status"] = {f"{u}:{ref}": await db.order_status(u, ref) for u, ref in (
+        (BIG_USER, "abc123xyz"), (BIG_USER, "rej00001"), (2, "cx000002"), (3, "ok000003"),
+        (2, "ok000003"), (BIG_USER, "nothere1"))}
     out["tables"] = await db.export_tables()
     return out
 

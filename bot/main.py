@@ -35,6 +35,7 @@ from config import (
     ConfigError,
     load_config,
 )
+import orderapi
 import selfping
 import webhook
 from db import Database
@@ -173,7 +174,11 @@ async def run(config: Config) -> None:
             stop = asyncio.Event()
             webhook.install_stop_signals(stop)
             ready = asyncio.Event()
-            runner = await webhook.start_server(dp, bot, secret=config.webhook_secret, port=config.port, ready=ready)
+            # Mini App buyurtma holatini shu serverdan so'raydi (CORS - faqat WEBAPP_URL origin'i)
+            api = orderapi.OrderStatusAPI(db=db, bot_token=config.bot_token,
+                                          allowed_origin=orderapi.origin_of(config.webapp_url), ready=ready)
+            runner = await webhook.start_server(dp, bot, secret=config.webhook_secret, port=config.port,
+                                                ready=ready, api=api)
             # 2) Baza va menyu - parallel (Neon uyg'onishi va Pages so'rovi bir-birini kutmaydi)
             await asyncio.gather(
                 db.connect(),

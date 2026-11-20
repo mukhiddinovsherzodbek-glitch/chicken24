@@ -5,19 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0F1115">
-  <!-- Xavfsizlik: skriptlar faqat o'zimizdan va telegram.org dan; tashqi so'rovlar yo'q -->
+  <!-- Xavfsizlik: skriptlar faqat o'zimizdan va telegram.org dan; tashqi so'rov faqat bot serveriga (config.js API_BASE) -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+        content="default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://chicken24-bot.onrender.com; base-uri 'none'; form-action 'none'; object-src 'none'">
   <title>Chicken24</title>
   <link rel="icon" href="images/logo-192.webp" type="image/webp">
   <!-- Telegram WebApp SDK boshqa skriptlardan oldin yuklanishi kerak -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <!-- ?v=N: Telegram eski keshni ko'rsatmasligi uchun; har o'zgarishda raqamni oshiring -->
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
   <!-- Interfeys matnlari (uz/ru) va bot natijasini qo'llash - app.js dan oldin -->
-  <script src="i18n.js?v=12" defer></script>
-  <script src="result.js?v=12" defer></script>
-  <script src="app.js?v=12" defer></script>
+  <script src="i18n.js?v=13" defer></script>
+  <script src="config.js?v=13" defer></script>
+  <script src="result.js?v=13" defer></script>
+  <script src="app.js?v=13" defer></script>
 </head>
 <body>
   <div id="app" class="app">

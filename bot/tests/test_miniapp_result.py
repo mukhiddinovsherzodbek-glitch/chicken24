@@ -74,6 +74,44 @@ scenario('bad_n', '?ok=p1&n=12a', 1);
   R.applyResult(orders, R.parseResult('?ok=p1&n=1'));
   out['input_untouched'] = JSON.stringify(orders) === copy;
 }
+// --- serverdan so'ralgan holat (GET /api/order-status) ---
+out['status_map'] = {
+  accepted: R.statusToResult('p1', { status: 'accepted', n: 7, reason: null }),
+  accepted_bad_n: R.statusToResult('p1', { status: 'accepted', n: '7; drop' }),
+  rejected: R.statusToResult('p1', { status: 'rejected', n: null, reason: 'area' }),
+  rejected_bad: R.statusToResult('p1', { status: 'rejected', reason: '<b>' }),
+  cancelled: R.statusToResult('p1', { status: 'cancelled', n: 7 }),
+  unknown: R.statusToResult('p1', { status: 'unknown' }),
+  pending: R.statusToResult('p1', { status: 'pending' }),
+  garbage: R.statusToResult('p1', 'oops'),
+  no_ref: R.statusToResult('', { status: 'accepted', n: 1 }),
+};
+out['delays'] = [0, 3999, 119999, 120000, 600000, 899999, 900000, 2e6, -5, NaN].map((t) => R.pollDelay(t));
+// polling natijasi ikki marta (va keyin havoladagi ?ok=) qo'llansa - holat buzilmaydi, savat bir marta tozalanadi
+{
+  const st = { orders: base(), cart: ['a'], clears: 0 };
+  const changes = [];
+  function poll(data) {
+    const res = R.applyResult(st.orders, R.statusToResult('p1', data));
+    if (!res) { changes.push(false); return; }
+    st.orders = res.orders;
+    if (res.accepted) { st.cart = []; st.clears += 1; }
+    changes.push(true);
+  }
+  poll({ status: 'unknown' });               // bot hali olmagan
+  poll({ status: 'accepted', n: 7 });
+  poll({ status: 'accepted', n: 7 });        // ikkinchi marta
+  changes.push(open(st, '?ok=p1&n=7').changed); // keyin havola orqali ham keldi
+  poll({ status: 'cancelled', n: 7 });       // ok dan keyin bekor - kutilmagan buyurtma emas, savatga tegilmaydi
+  out['poll_twice'] = { orders: st.orders, cart: st.cart, clears: st.clears, changes };
+}
+{
+  const st = { orders: base(), cart: ['a'], clears: 0 };
+  const a = R.applyResult(st.orders, R.statusToResult('p1', { status: 'rejected', reason: 'limit' }));
+  st.orders = a.orders;
+  const b = R.applyResult(st.orders, R.statusToResult('p1', { status: 'rejected', reason: 'limit' }));
+  out['poll_rej_twice'] = { orders: st.orders, second: b, cart: st.cart };
+}
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -133,6 +171,57 @@ def test_result_logic_idempotent():
     assert r["input_untouched"] is True
 
 
+def test_server_status_polling_logic():
+    if NODE is None:
+        print("SKIP: node topilmadi")
+        return
+    r = run_harness()
+    m = r["status_map"]
+    assert m["accepted"] == {"kind": "ok", "ref": "p1", "orderNo": "7"}
+    assert m["accepted_bad_n"] == {"kind": "ok", "ref": "p1", "orderNo": ""}
+    assert m["rejected"] == {"kind": "rej", "ref": "p1", "code": "area"}
+    assert m["rejected_bad"] == {"kind": "rej", "ref": "p1", "code": "data"}
+    assert m["cancelled"] == {"kind": "cx", "ref": "p1"}
+    for key in ("unknown", "pending", "garbage", "no_ref"):
+        assert m[key] is None, key
+    # 4 s (2 daqiqagacha), keyin 10 s, 15 daqiqadan keyin to'xtaydi
+    assert r["delays"] == [4000, 4000, 4000, 10000, 10000, 10000, None, None, 4000, 4000]
+    pt = r["poll_twice"]
+    assert pt["changes"] == [False, True, False, False, True]
+    assert pt["clears"] == 1 and pt["cart"] == [], "savat bir marta tozalanadi"
+    p1 = status(pt["orders"], "p1")
+    assert p1["status"] == "cancelled" and p1["orderNo"] == "7" and len(pt["orders"]) == 3
+    pr = r["poll_rej_twice"]
+    assert pr["second"] is None and status(pr["orders"], "p1")["reasonCode"] == "limit" and pr["cart"] == ["a"]
+
+
+def test_app_polls_order_status_quietly():
+    code = strip_js_comments((MINIAPP / "app.js").read_text(encoding="utf-8"))
+    for needle in ("/api/order-status?ref=", "Authorization: `tma ${tg.initData}`", "credentials: 'omit'",
+                   "'visibilitychange'", "RESULT.statusToResult(", "RESULT.pollDelay("):
+        assert needle in code, needle
+    init = code[code.index("async function init()"):]
+    assert "startStatusPolling();" in init[:init.index("\n  }\n")], "ochilganda darhol so'raladi"
+    start = code.index("const API_BASE = ")
+    block = code[start:code.index("function reorder(")]
+    for word in ("toast(", "haptic(", "alert", "T("):
+        assert word not in block, f"polling indamasdan bo'lsin: {word}"
+    # ?ok= / ?rej= / ?cx= zaxira yo'li saqlangan
+    assert "applyResultObject(RESULT.parseResult(window.location.search))" in code
+
+
+def test_config_api_base_allowed_by_csp():
+    cfg = (MINIAPP / "config.js").read_text(encoding="utf-8")
+    m = re.search(r"API_BASE:\s*'([^']*)'", cfg)
+    assert m, "config.js da API_BASE"
+    base = m.group(1).rstrip("/")
+    html = (MINIAPP / "index.html").read_text(encoding="utf-8")
+    csp = re.search(r"connect-src ([^;]+);", html).group(1).split()
+    assert base and base in csp, "API_BASE CSP connect-src da bo'lishi kerak (aks holda brauzer bloklaydi)"
+    assert set(csp) == {"'self'", base}, "boshqa tashqi manzil yo'q"
+    assert re.fullmatch(r"https://[a-z0-9.-]+", base)
+
+
 # ------------------------------------------------------------ indamasdan: xabar/banner yo'q
 
 def _apply_fn_body() -> str:
@@ -168,10 +257,10 @@ def test_removed_keys_and_no_unused_keys():
 
 def test_scripts_loaded_in_order_with_same_version():
     html = (MINIAPP / "index.html").read_text(encoding="utf-8")
-    srcs = re.findall(r'<script src="(i18n|result|app)\.js\?v=(\d+)"', html)
-    assert [s[0] for s in srcs] == ["i18n", "result", "app"]
+    srcs = re.findall(r'<script src="(i18n|config|result|app)\.js\?v=(\d+)"', html)
+    assert [s[0] for s in srcs] == ["i18n", "config", "result", "app"]
     versions = set(re.findall(r'\?v=(\d+)', html))
-    assert len(versions) == 1 and int(versions.pop()) >= 12
+    assert len(versions) == 1 and int(versions.pop()) >= 13
 
 
 if __name__ == "__main__":

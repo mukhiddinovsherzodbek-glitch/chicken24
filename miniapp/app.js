@@ -506,8 +506,13 @@
    * bir xil natija har ochilishda kelsa ham faqat birinchi marta o'zgartiradi.
    */
   function applyBotResult() {
-    const res = RESULT.applyResult(getOrders(), RESULT.parseResult(window.location.search));
-    if (!res) return;
+    applyResultObject(RESULT.parseResult(window.location.search));
+  }
+
+  /** Natijani (havoladan yoki serverdan) qo'llaydi. Nimadir o'zgarsa true. Indamasdan, idempotent. */
+  function applyResultObject(result) {
+    const res = RESULT.applyResult(getOrders(), result);
+    if (!res) return false;
     storageSet(STORAGE.orders, res.orders);
     if (res.accepted) {
       // Savat faqat aynan shu buyurtma bilan bir xil bo'lsa tozalanadi (mijoz keyin o'zgartirgan bo'lishi mumkin)
@@ -519,7 +524,115 @@
       clearCheckout(res.order.localId);
     }
     // Rad etilsa: holat "Rad etildi" (sabab kodi bilan), savat va forma saqlanadi
+    return true;
   }
+
+  // ---------------------------------------------------------------- buyurtma holatini serverdan so'rash
+  /*
+   * Mini App ochiq turganda bot unga natija yubora olmaydi, shuning uchun "tasdiq kutilmoqda" buyurtma
+   * bo'lsa holat bot serveridan so'raladi: GET {API_BASE}/api/order-status?ref=..., foydalanuvchi
+   * Telegram initData bilan aniqlanadi. Jadval result.js -> pollDelay (4 s, 2 daqiqadan keyin 10 s,
+   * 15 daqiqagacha); ochilganda va ekranga qaytganda darhol. Natija indamasdan qo'llanadi.
+   * Tarmoq xatosi, 429, 503 - jim, keyingi safar. API_BASE bo'lmasa - o'chiq (?ok= havolasi ishlayveradi).
+   */
+  const API_BASE = (() => {
+    const cfg = window.CHICKEN24_CONFIG || {};
+    const v = typeof cfg.API_BASE === 'string' ? cfg.API_BASE.trim().replace(/\/+$/, '') : '';
+    return /^https:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(v) ? v : '';
+  })();
+  const STATUS_MAX_ORDER_AGE_MS = 24 * 60 * 60 * 1000; // initData ham 24 soat amal qiladi
+  const STATUS_FETCH_TIMEOUT_MS = 8000;
+  const statusPoll = { timer: null, startedAt: 0, inFlight: false, stopped: false, rerender: false };
+
+  function statusPollEnabled() {
+    return !!API_BASE && inTelegram && !!(tg && tg.initData) && !statusPoll.stopped;
+  }
+
+  /** So'raladigan buyurtma: eng yangi "kutilmoqda" (24 soatdan yosh). */
+  function statusPollTarget() {
+    return getOrders().find((o) => o.status === 'pending' && msSince(o.date) < STATUS_MAX_ORDER_AGE_MS) || null;
+  }
+
+  /** Ochilganda / ekranga qaytganda: 15 daqiqalik jadval qaytadan, birinchi so'rov darhol. */
+  function startStatusPolling() {
+    if (!statusPollEnabled() || !statusPollTarget()) return;
+    statusPoll.startedAt = Date.now();
+    clearTimeout(statusPoll.timer);
+    statusPoll.timer = null;
+    pollStatusNow();
+  }
+
+  function scheduleStatusPoll() {
+    clearTimeout(statusPoll.timer);
+    statusPoll.timer = null;
+    if (!statusPollEnabled() || document.hidden || !statusPollTarget()) return;
+    const delay = RESULT.pollDelay(Date.now() - statusPoll.startedAt);
+    if (delay !== null) statusPoll.timer = setTimeout(pollStatusNow, delay);
+  }
+
+  async function pollStatusNow() {
+    if (statusPoll.inFlight) return; // javob kelgach o'zi rejalashtiradi
+    const order = statusPollTarget();
+    if (!order || !statusPollEnabled()) return;
+    statusPoll.inFlight = true;
+    try {
+      const data = await fetchOrderStatus(order.localId);
+      if (data && applyResultObject(RESULT.statusToResult(order.localId, data))) rerenderQuietly();
+    } catch (e) {
+      /* tarmoq xatosi - jim, keyingi safar */
+    } finally {
+      statusPoll.inFlight = false;
+      scheduleStatusPoll();
+    }
+  }
+
+  async function fetchOrderStatus(ref) {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), STATUS_FETCH_TIMEOUT_MS) : null;
+    try {
+      const resp = await fetch(`${API_BASE}/api/order-status?ref=${encodeURIComponent(ref)}`, {
+        method: 'GET',
+        headers: { Authorization: `tma ${tg.initData}` },
+        cache: 'no-store',
+        credentials: 'omit',
+        mode: 'cors',
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      if (resp.status === 401) { // initData yaroqsiz/eskirgan - qayta urinish foydasiz
+        statusPoll.stopped = true;
+        return null;
+      }
+      if (!resp.ok) return null; // 429 / 503 / 5xx - jim
+      return await resp.json();
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** Holat o'zgargach ekranni yangilash; mijoz maydonga yozayotgan bo'lsa - fokus chiqqandan keyin. */
+  function rerenderQuietly() {
+    const el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+      statusPoll.rerender = true;
+      return;
+    }
+    statusPoll.rerender = false;
+    render(false);
+  }
+
+  document.addEventListener('focusout', () => {
+    if (!statusPoll.rerender) return;
+    setTimeout(() => { if (statusPoll.rerender) rerenderQuietly(); }, 0);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearTimeout(statusPoll.timer);
+      statusPoll.timer = null;
+    } else {
+      startStatusPolling();
+    }
+  });
 
   function reorder(localId) {
     const order = getOrders().find((o) => o.localId === localId);
@@ -1549,6 +1662,7 @@
     state.stack = [{ name: 'home' }];
     render(true);
     if (removed) toast(T('toast.pruned'), true);
+    startStatusPolling(); // "kutilmoqda" buyurtma bo'lsa - holatni serverdan so'rash
   }
 
   // ---------------------------------------------------------------- ish vaqti banneri

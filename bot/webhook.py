@@ -2,6 +2,7 @@
 
 - POST <sir yo'lak>  - Telegram yangilanishlari. X-Telegram-Bot-Api-Secret-Token sarlavhasi
   WEBHOOK_SECRET bilan solishtiriladi (mos kelmasa 401).
+- GET /api/order-status - Mini App uchun buyurtma holati (orderapi.py, initData bilan).
 - GET/HEAD /health   - {"ok": true}. Bazaga murojaat qilmaydi (Render health check, keep-alive, UptimeRobot).
 
 Tez ishga tushish: server ENG BIRINCHI ochiladi (Render port'ni darhol ko'radi, /health darhol javob beradi),
@@ -17,6 +18,7 @@ import asyncio
 import hashlib
 import logging
 import signal
+from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
@@ -61,9 +63,11 @@ class GatedRequestHandler(SimpleRequestHandler):
 
 
 def build_app(dp: Dispatcher, bot: Bot, secret: str, *, ready: asyncio.Event | None = None,
-              ready_timeout: float = READY_TIMEOUT_SECONDS) -> web.Application:
+              ready_timeout: float = READY_TIMEOUT_SECONDS, api: Any = None) -> web.Application:
     app = web.Application()
     app.router.add_get(HEALTH_PATH, health)  # aiohttp HEAD ni ham avtomatik qo'shadi
+    if api is not None:
+        api.register(app)  # Mini App: GET /api/order-status (orderapi.py)
     GatedRequestHandler(dispatcher=dp, bot=bot, secret_token=secret, ready=ready,
                         ready_timeout=ready_timeout).register(app, path=webhook_path(secret))
     setup_application(app, dp, bot=bot)
@@ -81,9 +85,9 @@ def install_stop_signals(stop: asyncio.Event) -> None:
 
 
 async def start_server(dp: Dispatcher, bot: Bot, *, secret: str, port: int, host: str = "0.0.0.0",
-                       ready: asyncio.Event | None = None) -> web.AppRunner:
+                       ready: asyncio.Event | None = None, api: Any = None) -> web.AppRunner:
     """HTTP serverni ochadi va darhol qaytadi (to'xtatish: `await runner.cleanup()`)."""
-    runner = web.AppRunner(build_app(dp, bot, secret, ready=ready), access_log=None)  # access log'da sir yo'lak bo'lmasin
+    runner = web.AppRunner(build_app(dp, bot, secret, ready=ready, api=api), access_log=None)  # access log'da sir yo'lak bo'lmasin
     await runner.setup()
     try:
         await web.TCPSite(runner, host, port).start()

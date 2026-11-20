@@ -61,5 +61,32 @@
     };
   }
 
-  root.CHICKEN24_RESULT = { REJECT_CODES, parseResult, applyResult };
+  /**
+   * Bot serveridan kelgan holat (GET /api/order-status) -> applyResult uchun natija.
+   * accepted -> ok, cancelled -> cx, rejected -> rej. unknown/pending/buzuq javob -> null (kutish davom etadi).
+   */
+  function statusToResult(ref, data) {
+    if (!ref || !data || typeof data !== 'object') return null;
+    if (data.status === 'accepted') {
+      const n = Number.isInteger(data.n) && data.n > 0 && data.n < 1e10 ? String(data.n) : '';
+      return { kind: 'ok', ref, orderNo: n };
+    }
+    if (data.status === 'cancelled') return { kind: 'cx', ref };
+    if (data.status === 'rejected') {
+      return { kind: 'rej', ref, code: REJECT_CODES.includes(data.reason) ? data.reason : 'data' };
+    }
+    return null;
+  }
+
+  // Holatni so'rash jadvali: dastlabki 2 daqiqa - har 4 s, keyin har 10 s, 15 daqiqadan keyin to'xtaydi
+  const POLL = { fastMs: 4000, slowMs: 10000, fastForMs: 2 * 60 * 1000, maxMs: 15 * 60 * 1000 };
+
+  /** So'rash boshlanganidan beri o'tgan vaqt -> keyingi so'rovgacha kutish (ms) yoki null (to'xtash). */
+  function pollDelay(elapsedMs) {
+    const t = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
+    if (t >= POLL.maxMs) return null;
+    return t < POLL.fastForMs ? POLL.fastMs : POLL.slowMs;
+  }
+
+  root.CHICKEN24_RESULT = { REJECT_CODES, POLL, parseResult, applyResult, statusToResult, pollDelay };
 })(typeof window !== 'undefined' ? window : globalThis);

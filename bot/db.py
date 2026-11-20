@@ -727,6 +727,27 @@ class Database:
             return {"kind": kind, "ref": order[1], "order_id": int(order[0]), "reason": None}
         return None
 
+    async def order_status(self, user_id: int, client_ref: str) -> dict:
+        """Mini App so'rovi uchun: FAQAT shu foydalanuvchining shu ref li buyurtmasi holati.
+
+        Qaytadi: {"status": "accepted"|"cancelled"|"rejected"|"unknown", "n": int|None, "reason": str|None}.
+        Shaxsiy ma'lumot (ism, telefon, manzil) qaytmaydi. Bitta ref ham qabul, ham rad yozuviga ega bo'lsa
+        (qayta yuborilgan) - keyingisi hisoblanadi. "unknown" - bot hali bu buyurtmani olmagan.
+        """
+        order = await self._db.fetchone(
+            "SELECT id, status, created_at FROM orders WHERE user_id = ? AND client_ref = ? ORDER BY id DESC LIMIT 1",
+            (user_id, client_ref),
+        )
+        rej = await self._db.fetchone(
+            "SELECT reason, created_at FROM last_rejections WHERE user_id = ? AND client_ref = ?",
+            (user_id, client_ref),
+        )
+        if rej is not None and (order is None or datetime.fromisoformat(rej[1]) > datetime.fromisoformat(order[2])):
+            return {"status": "rejected", "n": None, "reason": rej[0]}
+        if order is not None:
+            return {"status": "cancelled" if order[1] == "cancelled" else "accepted", "n": int(order[0]), "reason": None}
+        return {"status": "unknown", "n": None, "reason": None}
+
     # ------------------------------------------------------------ mijoz tili
 
     async def get_user_lang(self, user_id: int) -> str | None:
