@@ -38,14 +38,17 @@
     const order = orders.find((o) => o && o.localId === result.ref);
     if (!order) return null; // eski / boshqa qurilmadagi natija - e'tibor berilmaydi
 
+    // 'lost' - "botga yetib bormadi" deb belgilangan, lekin bot keyin baribir olgan bo'lishi mumkin:
+    // natija kelsa kutilayotgan buyurtma kabi qo'llanadi (qabul qilingan bo'lsa savat tozalanadi - takror yo'q)
+    const waiting = order.status === 'pending' || order.status === 'lost';
     let patch = null;
     let accepted = false;
     if (result.kind === 'cx') {
-      if (order.status === 'pending' || order.status === 'ok') {
+      if (waiting || order.status === 'ok') {
         patch = { status: 'cancelled', reason: '' };
-        accepted = order.status === 'pending';
+        accepted = waiting;
       }
-    } else if (order.status === 'pending') {
+    } else if (waiting) {
       if (result.kind === 'ok') {
         patch = { status: 'ok', orderNo: result.orderNo || '', reason: '' };
         accepted = true;
@@ -88,5 +91,31 @@
     return t < POLL.fastForMs ? POLL.fastMs : POLL.slowMs;
   }
 
-  root.CHICKEN24_RESULT = { REJECT_CODES, POLL, parseResult, applyResult, statusToResult, pollDelay };
+  // Server shuncha vaqt ketma-ket aniq "unknown" desa - buyurtma botga yetib bormagan deb hisoblanadi
+  const LOST_AFTER_MS = 10 * 60 * 1000;
+
+  /**
+   * Server "unknown" (bot bu buyurtmani olmagan) qaytardi. Birinchi marta - vaqti eslab qolinadi
+   * (unknownSince); LOST_AFTER_MS o'tgach - holat 'lost' ("botga yetib bormadi": savat saqlanadi,
+   * qayta yuborish mumkin). Tarmoq xatosi va 503 bu yerga kelmaydi (ular hisobga olinmaydi).
+   * Qaytadi: null (o'zgarish yo'q) yoki { orders, lost: bool }.
+   */
+  function noteUnknown(orders, ref, nowMs) {
+    if (!Array.isArray(orders) || !ref || !Number.isFinite(nowMs)) return null;
+    const order = orders.find((o) => o && o.localId === ref);
+    if (!order || order.status !== 'pending') return null;
+    const since = Date.parse(order.unknownSince || '');
+    let patch;
+    if (Number.isNaN(since)) patch = { unknownSince: new Date(nowMs).toISOString() };
+    else if (nowMs - since >= LOST_AFTER_MS) patch = { status: 'lost' };
+    else return null;
+    return {
+      lost: patch.status === 'lost',
+      orders: orders.map((o) => (o === order ? Object.assign({}, o, patch) : o)),
+    };
+  }
+
+  root.CHICKEN24_RESULT = {
+    REJECT_CODES, POLL, LOST_AFTER_MS, parseResult, applyResult, statusToResult, pollDelay, noteUnknown,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

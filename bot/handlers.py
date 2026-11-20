@@ -676,23 +676,32 @@ async def on_web_app_data(
         await notify_admin(bot, config, "Buyurtmani saqlashda xato", user, f"{type(exc).__name__}: {exc}")
         return
 
-    # 4) Admin'ga chek (o'zbekcha). Yetib bormasa buyurtma bazada notified=0 bo'lib qoladi va
-    #    resend_unnotified() uni avtomatik qayta yuboradi (ishga tushganda va har 2 daqiqada).
-    delivered = await deliver_receipt(
-        bot, config, db, ReceiptData.from_order(order_id, created_at, user, order, phone_verified=phone_verified)
-    )
-    logger.info("Buyurtma #%s qabul qilindi: user_id=%s, til=%s, taomlar=%s, yetkazish=%s, jami=%s, admin'ga yetdi=%s",
-                order_id, user.id, lang, order.items_total, order.delivery_fee, order.total, delivered)
+    # Tartib: 3) bazada saqlandi -> 4) mijozga tasdiq -> 5) bekor qilish tugmasi -> 6) admin'ga chek.
+    # Admin'ga yetkazishdagi xato (ADMIN_ID noto'g'ri, admin /start bosmagan, Telegram xatosi) buyurtmani
+    # bekor qilmaydi va mijoz tasdig'ini to'xtatmaydi: notified=0 qoladi, resend_unnotified() keyin yuboradi.
 
-    # 5) Mijozga tasdiq o'z tilida (havolada bazadagi natija ?ok=<ref>&n=<raqam>: Mini App savatni tozalaydi)
-    text = build_customer_text(order_id, order, lang)
-    if not delivered:
-        text += "\n\n" + t(lang, "order.delayed")
-    await safe_answer(message, text, reply_markup=await main_keyboard(config, db, user.id, lang))
+    # 4) Mijozga tasdiq o'z tilida (havolada bazadagi natija ?ok=<ref>&n=<raqam>: Mini App savatni tozalaydi)
+    await safe_answer(message, build_customer_text(order_id, order, lang),
+                      reply_markup=await main_keyboard(config, db, user.id, lang))
 
-    # 6) Bekor qilish tugmasi - alohida xabarda (bitta xabarda ham reply-, ham inline-klaviatura bo'lolmaydi;
+    # 5) Bekor qilish tugmasi - alohida xabarda (bitta xabarda ham reply-, ham inline-klaviatura bo'lolmaydi;
     #    yuqoridagi reply-klaviaturadagi natijali havola shu tufayli buzilmaydi)
     await send_cancel_offer(bot, message, order_id, lang)
+
+    # 6) Admin'ga chek (o'zbekcha)
+    try:
+        delivered = await deliver_receipt(
+            bot, config, db, ReceiptData.from_order(order_id, created_at, user, order, phone_verified=phone_verified)
+        )
+    except Exception:
+        logger.exception("Admin'ga chek tayyorlanmadi (order_id=%s) - keyin qayta yuboriladi", order_id)
+        db.note_unnotified()
+        delivered = False
+    logger.info("Buyurtma #%s qabul qilindi: user_id=%s, til=%s, taomlar=%s, yetkazish=%s, jami=%s, admin'ga yetdi=%s",
+                order_id, user.id, lang, order.items_total, order.delivery_fee, order.total, delivered)
+    if not delivered:
+        # Mijoz qayta buyurtma bermasligi uchun (buyurtma saqlangan, avtomatik qayta yuboriladi)
+        await safe_answer(message, t(lang, "order.delayed"))
 
 
 # ---------------------------------------------------------------- bekor qilish (5 daqiqa)

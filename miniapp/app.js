@@ -22,7 +22,8 @@
   };
   // draft - yuborilgan, lekin hali qabul qilinmagan forma; legacyProfile - eski versiyadagi ism/telefon (o'chiriladi)
   const STORAGE = { cart: 'cart', orders: 'orders', draft: 'checkoutDraft', legacyProfile: 'profile' };
-  const ORDER_STATUSES = ['pending', 'ok', 'rejected', 'cancelled'];
+  // lost - server 10 daqiqa "unknown" dedi: botga yetib bormagan (savat saqlanadi, qayta yuborish mumkin)
+  const ORDER_STATUSES = ['pending', 'ok', 'rejected', 'cancelled', 'lost'];
   // Yetkazish hududi. ASOSIY sozlama bot/config.py da (DELIVERY_*), bu yerda uning nusxasi:
   // Mini App faqat mijozni darhol ogohlantiradi, haqiqiy tekshiruv botda.
   const DELIVERY_AREA = { name: 'Samarqand shahri', lat: 39.6542, lon: 66.9597, radiusKm: 12 };
@@ -467,6 +468,8 @@
         orderNo: typeof o.orderNo === 'string' && /^\d{1,10}$/.test(o.orderNo) ? o.orderNo : '',
         reason: typeof o.reason === 'string' ? o.reason : '', // eski versiya: tayyor matn (o'zbekcha)
         reasonCode: REJECT_CODES.includes(o.reasonCode) ? o.reasonCode : '',
+        // server birinchi marta "unknown" degan payt (RESULT.noteUnknown)
+        unknownSince: typeof o.unknownSince === 'string' ? o.unknownSince : '',
       }))
       .sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0))
       .slice(0, LIMITS.ordersKeep);
@@ -482,6 +485,16 @@
     storageSet(STORAGE.orders, getOrders().filter((o) => o.localId !== localId));
   }
 
+
+  /**
+   * Buyurtma belgisi (client_ref): 128 bit kriptografik tasodifiy, 32 ta hex belgi. Server holatni FAQAT shu
+   * belgi bo'yicha beradi - uni taxmin qilib bo'lmasligi shart (Math.random emas).
+   */
+  function newOrderRef() {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
 
   /** Eng oxirgi "tasdiq kutilmoqda" holatidagi buyurtma (bo'lmasa null). */
   function lastPendingOrder() {
@@ -542,15 +555,20 @@
   })();
   const STATUS_MAX_ORDER_AGE_MS = 24 * 60 * 60 * 1000; // initData ham 24 soat amal qiladi
   const STATUS_FETCH_TIMEOUT_MS = 8000;
-  const statusPoll = { timer: null, startedAt: 0, inFlight: false, stopped: false, rerender: false };
+  // Server har ref'ga 2 soniyada 1 so'rov beradi: ochilish + visibilitychange bir vaqtga to'g'ri kelsa ham
+  // so'rovlar orasida kamida shuncha vaqt bo'ladi (aks holda 429)
+  const STATUS_MIN_GAP_MS = 2100;
+  const statusPoll = { timer: null, startedAt: 0, lastAt: 0, inFlight: false, stopped: false, rerender: false };
 
   function statusPollEnabled() {
-    return !!API_BASE && inTelegram && !!(tg && tg.initData) && !statusPoll.stopped;
+    // initData SHART EMAS: klaviatura tugmasidan ochilgan Mini App'da Telegram uni bermaydi - ref'ning o'zi sir
+    return !!API_BASE && inTelegram && !statusPoll.stopped;
   }
 
-  /** So'raladigan buyurtma: eng yangi "kutilmoqda" (24 soatdan yosh). */
+  /** So'raladigan buyurtma: eng yangi "kutilmoqda" yoki "yetib bormadi" (24 soatdan yosh). */
   function statusPollTarget() {
-    return getOrders().find((o) => o.status === 'pending' && msSince(o.date) < STATUS_MAX_ORDER_AGE_MS) || null;
+    return getOrders().find((o) => (o.status === 'pending' || o.status === 'lost')
+      && msSince(o.date) < STATUS_MAX_ORDER_AGE_MS) || null;
   }
 
   /** Ochilganda / ekranga qaytganda: 15 daqiqalik jadval qaytadan, birinchi so'rov darhol. */
@@ -559,7 +577,9 @@
     statusPoll.startedAt = Date.now();
     clearTimeout(statusPoll.timer);
     statusPoll.timer = null;
-    pollStatusNow();
+    const wait = STATUS_MIN_GAP_MS - (Date.now() - statusPoll.lastAt);
+    if (wait > 0) statusPoll.timer = setTimeout(pollStatusNow, wait);
+    else pollStatusNow();
   }
 
   function scheduleStatusPoll() {
@@ -575,9 +595,20 @@
     const order = statusPollTarget();
     if (!order || !statusPollEnabled()) return;
     statusPoll.inFlight = true;
+    statusPoll.lastAt = Date.now();
     try {
       const data = await fetchOrderStatus(order.localId);
-      if (data && applyResultObject(RESULT.statusToResult(order.localId, data))) rerenderQuietly();
+      const result = RESULT.statusToResult(order.localId, data);
+      if (result) {
+        if (applyResultObject(result)) rerenderQuietly();
+      } else if (data && data.status === 'unknown') {
+        // Faqat ANIQ "unknown" hisoblanadi (tarmoq xatosi / 503 bu yerga kelmaydi)
+        const lost = RESULT.noteUnknown(getOrders(), order.localId, Date.now());
+        if (lost) {
+          storageSet(STORAGE.orders, lost.orders);
+          if (lost.lost) rerenderQuietly();
+        }
+      }
     } catch (e) {
       /* tarmoq xatosi - jim, keyingi safar */
     } finally {
@@ -590,19 +621,18 @@
     const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), STATUS_FETCH_TIMEOUT_MS) : null;
     try {
+      // initData bo'lsa (menyu tugmasi / havola orqali ochilgan) - ixtiyoriy yuboriladi: server egasini ham
+      // tekshiradi. Bo'lmasa sarlavhasiz oddiy GET (preflight ham yo'q)
+      const initData = tg && typeof tg.initData === 'string' ? tg.initData : '';
       const resp = await fetch(`${API_BASE}/api/order-status?ref=${encodeURIComponent(ref)}`, {
         method: 'GET',
-        headers: { Authorization: `tma ${tg.initData}` },
+        headers: initData ? { Authorization: `tma ${initData}` } : {},
         cache: 'no-store',
         credentials: 'omit',
         mode: 'cors',
         signal: ctrl ? ctrl.signal : undefined,
       });
-      if (resp.status === 401) { // initData yaroqsiz/eskirgan - qayta urinish foydasiz
-        statusPoll.stopped = true;
-        return null;
-      }
-      if (!resp.ok) return null; // 429 / 503 / 5xx - jim
+      if (!resp.ok) return null; // 429 / 503 / 5xx - jim, keyingi safar
       return await resp.json();
     } finally {
       if (timer) clearTimeout(timer);
@@ -963,8 +993,11 @@
 
     // Oldingi buyurtma holati haqida eslatma
     let notice = null;
+    const latest = getOrders()[0];
     const pending = lastPendingOrder();
-    if (pending && msSince(pending.date) < PENDING_STALE_MS) {
+    if (latest && latest.status === 'lost') {
+      notice = h('div', { class: 'notice err' }, T('notice.lost'));
+    } else if (pending && msSince(pending.date) < PENDING_STALE_MS) {
       notice = h('div', { class: 'notice info' }, T('notice.pending', { time: fmtDate(pending.date).slice(-5) }));
     }
 
@@ -1436,7 +1469,7 @@
     }
     setSubmitting(true);
 
-    const localId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const localId = newOrderRef();
     const useLocation = co.locStatus === 'ok' && !!co.loc;
     const lines = Array.from(state.cart).filter(([id]) => state.menu.byId.has(id));
     // Narx va jami summa YUBORILMAYDI - bot ularni menu.json dan hisoblaydi
@@ -1529,6 +1562,9 @@
       // Yangi yozuvlarda sabab kodi (tanlangan tilda); eski yozuvlarda saqlangan tayyor matn
       const reason = o.reasonCode ? rejectReason(o.reasonCode) : (o.reason || rejectReason('data'));
       return h('p', { class: 'order-status err' }, T('status.rejected', { reason }));
+    }
+    if (o.status === 'lost') {
+      return h('p', { class: 'order-status err' }, T('status.lost'));
     }
     if (o.status === 'pending') {
       return msSince(o.date) < PENDING_STALE_MS

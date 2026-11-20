@@ -431,19 +431,37 @@ bot unga natija yubora olmaydi — avval "bot javobini kutmoqda" yozuvi qolib ke
 
 **Qanday ishlaydi:**
 - Mini App ochilganda va ekranga qaytganda darhol, keyin **har 4 soniyada**, 2 daqiqadan keyin **har 10 soniyada**,
-  jami **15 daqiqagacha** so'raydi (faqat "kutilmoqda" buyurtma bor bo'lsa; javob kelgach to'xtaydi).
+  jami **15 daqiqagacha** so'raydi (faqat "kutilmoqda" yoki "yetib bormadi" buyurtma bor bo'lsa; javob kelgach to'xtaydi).
 - Natija **indamasdan** qo'llanadi (`result.js`): qabul qilinsa savat tozalanadi va "Qabul qilindi · #N";
   rad etilsa savat saqlanadi; bekor qilingan bo'lsa "Bekor qilindi". Toast/banner yo'q.
 - Tarmoq xatosi, 429 yoki 503 bo'lsa jim qayta uriniladi — mijozga xato ko'rsatilmaydi.
+- **Qotib qolmaydi:** server **10 daqiqadan ortiq ketma-ket aniq `unknown`** qaytarsa (tarmoq xatosi/503 hisoblanmaydi),
+  buyurtma "⚠️ Botga yetib bormadi" holatiga o'tadi: savat saqlanadi, savat ustida
+  "Buyurtma botga yetib bormadi. Qayta yuboring." qatori chiqadi va mijoz qayta yubora oladi.
+  Agar keyin server shu buyurtma uchun `accepted` qaytarsa (bot baribir olgan) — savat tozalanadi, takroriy
+  buyurtma bo'lmaydi.
 
 **Xavfsizlik (server, `bot/orderapi.py`):**
-- Mijoz Telegram **initData** bilan aniqlanadi (`Authorization: tma <initData>`): imzo bot tokeni bilan
-  tekshiriladi (HMAC-SHA256, constant-time), 24 soatdan eski initData rad etiladi. Foydalanuvchi ID faqat
-  initData dan olinadi — har kim faqat **o'z** buyurtmasini ko'radi.
+- **Buyurtma belgisi (ref) — sir.** Yangi ref'lar 32 belgi (128 bit, `crypto.getRandomValues`), taxmin qilib bo'lmaydi.
+  Holat faqat ref bo'yicha beriladi.
+- **initData shart emas.** Pastdagi "Buyurtma berish" (klaviatura) tugmasidan ochilgan Mini App'da Telegram
+  initData bermaydi — shuning uchun avvalgi versiya har doim `401` olardi. Endi initData bo'lsa (masalan, menyu
+  tugmasidan ochilganda) Mini App uni ixtiyoriy yuboradi; imzosi to'g'ri bo'lsa (HMAC-SHA256, constant-time,
+  24 soat) buyurtma shu foydalanuvchiniki ekani ham tekshiriladi, boshqasiniki bo'lsa `unknown`.
+  Noto'g'ri initData e'tiborsiz qoldiriladi (rad etilmaydi).
 - Javob faqat `{"status": "accepted"|"rejected"|"cancelled"|"unknown", "n": raqam, "reason": sabab kodi}` —
-  ism, telefon, manzil yo'q. `unknown` — bot buyurtmani hali olmagan (Mini App kutishda davom etadi).
-- CORS faqat `WEBAPP_URL` origin'i (`https://chicken24.pages.dev`) uchun. Har foydalanuvchiga 2 soniyada 1 so'rov.
+  ism, telefon, manzil, Telegram ID yo'q. `unknown` — bot bu buyurtmani olmagan.
+- **So'rov cheklovi:** har ref'ga 2 soniyada 1 ta; IP boshiga daqiqasiga 120 ta; eski **qisqa** ref'lar
+  (16 belgidan kam — avvalgi versiyadagi buyurtmalar) uchun IP boshiga **daqiqasiga 30 ta** — taxmin qilib
+  topish amalda imkonsiz (429). IP — Cloudflare'ning `CF-Connecting-IP` sarlavhasidan.
+- CORS faqat `GET` va faqat `WEBAPP_URL` origin'i (`https://chicken24.pages.dev`) uchun.
 - Baza ulanmagan / bot hali ishga tushayotgan bo'lsa — `503` (`/health` bunga bog'liq emas).
+
+**Buyurtma yo'qolmasligi (bot, `handlers.py`):** tartib — bazaga saqlash → mijozga tasdiq → bekor qilish tugmasi →
+admin'ga chek. Admin'ga yuborish xato bersa (`ADMIN_ID` noto'g'ri, admin botga `/start` bosmagan, Telegram xatosi)
+buyurtma bekor bo'lmaydi: mijoz tasdiqni baribir oladi (keyin "Qayta buyurtma bermang" eslatmasi), xato logga
+yoziladi, `notified=0` qoladi va bot uni har 2 daqiqada / qayta ishga tushganda qayta yuboradi. Webhook
+yangilanishni fonda qayta ishlaydi — handlerdagi xato Telegram'ga `500` qaytarmaydi (cheksiz qayta urinish yo'q).
 
 **Sozlama:** server manzili `miniapp/config.js` dagi `API_BASE` da (hozir `https://chicken24-bot.onrender.com`).
 Render manzili o'zgarsa: `config.js` dagi `API_BASE` **va** `miniapp/index.html` dagi CSP `connect-src` ni
@@ -455,3 +473,5 @@ shu holda ham havola ishlayveradi.
 berish" tugmasi bilan Mini App'ni qayta oching → savatda "bot javobini kutmoqda" yozuvi ko'rinadi → bir necha
 soniyada (bot buyurtmani saqlagach) yozuv yo'qoladi, savat bo'shaydi, "Buyurtmalarim" da "Qabul qilindi · #N".
 Mini App'ni yopmasdan boshqa ilovaga o'tib qaytsangiz ham darhol tekshiradi.
+Avvalgi versiyada qotib qolgan eski buyurtmalar ham shu yo'l bilan yechiladi: Mini App'ni oching — bot qabul qilgan
+bo'lsa savat bir necha soniyada tozalanadi; olmagan bo'lsa 10 daqiqadan keyin "Botga yetib bormadi" chiqadi.

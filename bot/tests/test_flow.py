@@ -311,11 +311,12 @@ def test_unnotified_order_is_resent_once():
         cur = await env.db.conn.execute("SELECT notified FROM orders")
         notified_after = (await cur.fetchone())[0]
         await env.db.close()
-        return customer_text, markup, notified_before, (first, second, third), bot.sent, notified_after
+        return customer_text, markup, notified_before, (first, second, third), bot.sent, notified_after, answers
 
-    text, markup, before, counts, sent, after = run(scenario())
-    # Mijoz: buyurtma qabul qilindi, kechikish haqida ogohlantirish, savatni tozalash havolasi
-    assert text.startswith("✅") and "Qayta buyurtma bermang" in text
+    text, markup, before, counts, sent, after, answers = run(scenario())
+    # Mijoz: AVVAL tasdiq (admin'ga yetmaganidan qat'i nazar), keyin kechikish haqida alohida ogohlantirish
+    assert text.startswith("✅") and "Qayta buyurtma bermang" not in text
+    assert "Qayta buyurtma bermang" in answers[-1][0] and len(answers) == 3  # tasdiq, bekor qilish, ogohlantirish
     assert button_query(markup)["ok"] == ["abc123xyz"]
     assert before == 0 and after == 1
     assert sorted(counts) == [0, 0, 1], counts  # parallel chaqiruvda ham faqat 1 marta

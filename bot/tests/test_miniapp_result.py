@@ -112,6 +112,36 @@ out['delays'] = [0, 3999, 119999, 120000, 600000, 899999, 900000, 2e6, -5, NaN].
   const b = R.applyResult(st.orders, R.statusToResult('p1', { status: 'rejected', reason: 'limit' }));
   out['poll_rej_twice'] = { orders: st.orders, second: b, cart: st.cart };
 }
+// --- 10 daqiqa aniq "unknown" -> 'lost' (botga yetib bormadi), keyin "accepted" kelsa savat tozalanadi ---
+{
+  const byRef = (orders, id) => orders.find((o) => o.localId === id);
+  const T0 = Date.parse('2026-11-21T10:00:00Z');
+  const st = { orders: base(), cart: ['a'], clears: 0 };
+  const steps = [];
+  function unknown(atMs) {
+    const r = R.noteUnknown(st.orders, 'p1', atMs);
+    if (r) st.orders = r.orders;
+    steps.push(r ? (r.lost ? 'lost' : 'since') : null);
+  }
+  unknown(T0);                       // birinchi "unknown" - vaqt eslab qolinadi
+  unknown(T0 + 5 * 60 * 1000);       // 5 daqiqa - hali kutiladi
+  unknown(T0 + 10 * 60 * 1000 - 1);  // 10 daqiqadan 1 ms kam
+  unknown(T0 + 10 * 60 * 1000);      // 10 daqiqa - yetib bormadi
+  unknown(T0 + 11 * 60 * 1000);      // 'lost' dan keyin o'zgarmaydi
+  const lostOrder = byRef(st.orders, 'p1');
+  out['lost'] = { steps, status: lostOrder.status, since: lostOrder.unknownSince, cart: st.cart.slice() };
+  // bot baribir olgan ekan - "accepted": savat tozalanadi (takroriy buyurtma bo'lmasin), ikkinchi marta o'zgarmaydi
+  const a = R.applyResult(st.orders, R.statusToResult('p1', { status: 'accepted', n: 12 }));
+  st.orders = a.orders;
+  if (a.accepted) { st.cart = []; st.clears += 1; }
+  const b = R.applyResult(st.orders, R.statusToResult('p1', { status: 'accepted', n: 12 }));
+  out['lost_then_ok'] = { accepted: a.accepted, second: b, status: byRef(st.orders, 'p1').status,
+                          orderNo: byRef(st.orders, 'p1').orderNo, cart: st.cart, clears: st.clears };
+  // boshqa holatlarga noteUnknown tegmaydi
+  out['unknown_on_ok'] = R.noteUnknown(base(), 'o1', T0);
+  out['unknown_bad'] = [R.noteUnknown(base(), 'zzz', T0), R.noteUnknown(null, 'p1', T0), R.noteUnknown(base(), 'p1', NaN)];
+  out['lost_ms'] = R.LOST_AFTER_MS;
+}
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -197,7 +227,7 @@ def test_server_status_polling_logic():
 
 def test_app_polls_order_status_quietly():
     code = strip_js_comments((MINIAPP / "app.js").read_text(encoding="utf-8"))
-    for needle in ("/api/order-status?ref=", "Authorization: `tma ${tg.initData}`", "credentials: 'omit'",
+    for needle in ("/api/order-status?ref=", "Authorization: `tma ${initData}`", "credentials: 'omit'",
                    "'visibilitychange'", "RESULT.statusToResult(", "RESULT.pollDelay("):
         assert needle in code, needle
     init = code[code.index("async function init()"):]
@@ -208,6 +238,42 @@ def test_app_polls_order_status_quietly():
         assert word not in block, f"polling indamasdan bo'lsin: {word}"
     # ?ok= / ?rej= / ?cx= zaxira yo'li saqlangan
     assert "applyResultObject(RESULT.parseResult(window.location.search))" in code
+
+
+
+def test_unknown_for_10_minutes_unlocks_cart():
+    if NODE is None:
+        print("SKIP: node topilmadi")
+        return
+    r = run_harness()
+    lost = r["lost"]
+    assert lost["steps"] == ["since", None, None, "lost", None]
+    assert lost["status"] == "lost" and lost["since"] == "2026-11-21T10:00:00.000Z"
+    assert lost["cart"] == ["a"], "yetib bormagan buyurtma savati saqlanadi - qayta yuborish mumkin"
+    lo = r["lost_then_ok"]
+    assert lo["accepted"] is True and lo["second"] is None
+    assert lo["status"] == "ok" and lo["orderNo"] == "12" and lo["cart"] == [] and lo["clears"] == 1
+    assert r["unknown_on_ok"] is None and r["unknown_bad"] == [None, None, None]
+    assert r["lost_ms"] == 10 * 60 * 1000
+
+
+def test_order_ref_is_crypto_random_and_init_data_optional():
+    code = strip_js_comments((MINIAPP / "app.js").read_text(encoding="utf-8"))
+    fn = code[code.index("function newOrderRef()"):]
+    fn = fn[:fn.index("\n  }\n")]
+    assert "crypto.getRandomValues" in fn and "new Uint8Array(16)" in fn, "128 bit"
+    assert "Math.random" not in code, "ref uchun Math.random ishlatilmasin"
+    assert "const localId = newOrderRef();" in code
+    enabled = code[code.index("function statusPollEnabled()"):]
+    enabled = enabled[:enabled.index("\n  }\n")]
+    assert "initData" not in enabled, "initData bo'sh bo'lsa ham so'rash ishlaydi"
+    assert "headers: initData ? { Authorization: `tma ${initData}` } : {}" in code
+    assert "resp.status === 401" not in code
+    # 'lost' holati: savat ustidagi qator va tarixdagi yozuv
+    assert "T('notice.lost')" in code and "T('status.lost')" in code
+    d = load_miniapp_i18n()
+    assert d["uz"]["notice.lost"] == "⚠️ Buyurtma botga yetib bormadi. Qayta yuboring."
+    assert "не дошёл до бота" in d["ru"]["notice.lost"]
 
 
 def test_config_api_base_allowed_by_csp():
@@ -260,7 +326,7 @@ def test_scripts_loaded_in_order_with_same_version():
     srcs = re.findall(r'<script src="(i18n|config|result|app)\.js\?v=(\d+)"', html)
     assert [s[0] for s in srcs] == ["i18n", "config", "result", "app"]
     versions = set(re.findall(r'\?v=(\d+)', html))
-    assert len(versions) == 1 and int(versions.pop()) >= 13
+    assert len(versions) == 1 and int(versions.pop()) >= 14
 
 
 if __name__ == "__main__":

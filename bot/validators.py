@@ -30,7 +30,8 @@ PHONE_RE = re.compile(r"\+998[0-9]{9}")
 
 
 # Mini App yaratgan buyurtma belgisi (tarixdagi yozuvni bot javobi bilan bog'lash uchun)
-REF_RE = re.compile(r"[a-z0-9]{6,24}")
+# Mini App yozuvi belgisi: yangilari 32 belgi (128 bit, crypto.getRandomValues), eskilari 6-24 belgi
+REF_RE = re.compile(r"[a-z0-9]{6,64}")
 
 
 class ValidationError(Exception):

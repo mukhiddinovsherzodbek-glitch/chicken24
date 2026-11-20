@@ -160,6 +160,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 """
 
+# Migratsiyadan KEYIN yaratiladigan indekslar (eski bazada ustun keyin qo'shiladi)
+POST_MIGRATION_SQL = "CREATE INDEX IF NOT EXISTS idx_orders_ref ON orders(client_ref)"
+
 # Eski bazalarga keyin qo'shilgan ustunlar (mavjud ma'lumot saqlanadi)
 MIGRATIONS = {
     "orders": {
@@ -527,6 +530,7 @@ class Database:
                     await con.execute(
                         "UPDATE orders SET items_total = total, delivery_fee = 0 WHERE items_total IS NULL"
                     )
+                    await con.execute(POST_MIGRATION_SQL)
         except Exception as exc:
             if self._pool is not None:
                 await self._pool.close()
@@ -552,6 +556,7 @@ class Database:
         )
         if cursor.rowcount:
             logger.info("Eski %d ta buyurtmaga items_total/delivery_fee to'ldirildi", cursor.rowcount)
+        await self.conn.execute(POST_MIGRATION_SQL)
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -727,21 +732,26 @@ class Database:
             return {"kind": kind, "ref": order[1], "order_id": int(order[0]), "reason": None}
         return None
 
-    async def order_status(self, user_id: int, client_ref: str) -> dict:
-        """Mini App so'rovi uchun: FAQAT shu foydalanuvchining shu ref li buyurtmasi holati.
+    async def order_status(self, client_ref: str, user_id: int | None = None) -> dict:
+        """Mini App so'rovi uchun buyurtma holati - client_ref (tasodifiy sir) bo'yicha.
 
+        user_id berilsa (initData to'g'ri kelgan) - yozuv shu foydalanuvchiniki bo'lishi ham shart.
         Qaytadi: {"status": "accepted"|"cancelled"|"rejected"|"unknown", "n": int|None, "reason": str|None}.
         Shaxsiy ma'lumot (ism, telefon, manzil) qaytmaydi. Bitta ref ham qabul, ham rad yozuviga ega bo'lsa
-        (qayta yuborilgan) - keyingisi hisoblanadi. "unknown" - bot hali bu buyurtmani olmagan.
+        (qayta yuborilgan) - keyingisi hisoblanadi. "unknown" - bot bu buyurtmani olmagan.
         """
         order = await self._db.fetchone(
-            "SELECT id, status, created_at FROM orders WHERE user_id = ? AND client_ref = ? ORDER BY id DESC LIMIT 1",
-            (user_id, client_ref),
+            "SELECT id, status, created_at, user_id FROM orders WHERE client_ref = ? ORDER BY id DESC LIMIT 1",
+            (client_ref,),
         )
         rej = await self._db.fetchone(
-            "SELECT reason, created_at FROM last_rejections WHERE user_id = ? AND client_ref = ?",
-            (user_id, client_ref),
+            "SELECT reason, created_at, user_id FROM last_rejections WHERE client_ref = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (client_ref,),
         )
+        if user_id is not None:
+            order = order if order is not None and int(order[3]) == user_id else None
+            rej = rej if rej is not None and int(rej[2]) == user_id else None
         if rej is not None and (order is None or datetime.fromisoformat(rej[1]) > datetime.fromisoformat(order[2])):
             return {"status": "rejected", "n": None, "reason": rej[0]}
         if order is not None:
