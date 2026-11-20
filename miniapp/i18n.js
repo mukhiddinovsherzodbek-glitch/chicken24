@@ -109,6 +109,10 @@ window.CHICKEN24_I18N = {
     "toast.too_big": "Buyurtma hajmi juda katta. Manzilni qisqartiring yoki savatni kamaytiring.",
     "toast.only_tg": "Buyurtma faqat Telegram ichida, bot tugmasi orqali yuboriladi.",
     "toast.send_failed": "Buyurtmani yuborib bo'lmadi. Ilovani bot ichidagi «{btn}» tugmasi orqali oching.",
+    "toast.send_retry": "Buyurtma yuborilmadi. Internetni tekshirib, qayta yuboring.",
+    "toast.send_unknown": "Javob kelmadi. Qayta yuborsangiz ham buyurtma ikki marta bo'lmaydi.",
+    "toast.reopen": "Ilovani bot chatidagi «Buyurtma berish» tugmasidan qayta oching.",
+    "notice.not_accepted": "❌ Buyurtma qabul qilinmadi: {reason}",
     "toast.debug": "DEBUG: buyurtma konsolga yozildi (Telegram'da sendData chaqiriladi)",
 
     "reject.limit": "oldingi buyurtmadan keyin 30 soniya o'tmagan.",
@@ -254,6 +258,10 @@ window.CHICKEN24_I18N = {
     "toast.too_big": "Слишком большой заказ. Сократите адрес или уменьшите корзину.",
     "toast.only_tg": "Заказ можно отправить только в Telegram, через кнопку бота.",
     "toast.send_failed": "Не удалось отправить заказ. Откройте приложение через кнопку «{btn}» в боте.",
+    "toast.send_retry": "Заказ не отправлен. Проверьте интернет и отправьте ещё раз.",
+    "toast.send_unknown": "Ответ не получен. Повторная отправка не создаст второй заказ.",
+    "toast.reopen": "Откройте приложение заново кнопкой «Сделать заказ» в чате с ботом.",
+    "notice.not_accepted": "❌ Заказ не принят: {reason}",
     "toast.debug": "DEBUG: заказ записан в консоль (в Telegram вызывается sendData)",
 
     "reject.limit": "с момента предыдущего заказа не прошло 30 секунд.",

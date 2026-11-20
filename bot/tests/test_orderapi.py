@@ -381,19 +381,27 @@ def test_order_status_db_method():
         await on_web_app_data(make_message(9, good(ref=ref, lat=41.2995, lon=69.2401))[0], **env.deps(bot))
         env.limiter.release(9)
         before = await env.db.order_status(ref)
-        await on_web_app_data(make_message(9, good(ref=ref))[0], **env.deps(bot))  # qayta yuborildi - qabul
-        after = await env.db.order_status(ref)
-        owner = await env.db.order_status(ref, user_id=9)
-        foreign = await env.db.order_status(ref, user_id=10)
+        # bir xil ref qayta keldi (takror so'rov) - yangi buyurtma yaratilmaydi, avvalgi natija qoladi
+        msg, answers = make_message(9, good(ref=ref))
+        await on_web_app_data(msg, **env.deps(bot))
+        again = await env.db.order_status(ref)
+        count = (await (await env.db.conn.execute("SELECT COUNT(*) FROM orders")).fetchone())[0]
+        # yangi ref - qabul; keyin shu ref'ga eskiroq rad yozuvi - qabul ustun (keyingisi hisoblanadi)
+        env.limiter.release(9)
+        ref2 = secrets.token_hex(16)
+        await on_web_app_data(make_message(9, good(ref=ref2))[0], **env.deps(bot))
+        owner = await env.db.order_status(ref2, user_id=9)
+        foreign = await env.db.order_status(ref2, user_id=10)
         stored = (await (await env.db.conn.execute("SELECT client_ref FROM orders")).fetchone())[0]
         await env.db.close()
-        return before, after, owner, foreign, stored, ref
+        return before, again, count, answers, owner, foreign, stored, ref2
 
-    before, after, owner, foreign, stored, ref = run(go())
-    assert before == {"status": "rejected", "n": None, "reason": "area"}
-    assert after == owner == {"status": "accepted", "n": 1, "reason": None}
+    before, again, count, answers, owner, foreign, stored, ref2 = run(go())
+    assert before == again == {"status": "rejected", "n": None, "reason": "area"}
+    assert count == 0 and answers == [], "takror so'rovda yangi buyurtma ham, xabar ham yo'q"
+    assert owner == {"status": "accepted", "n": 1, "reason": None}
     assert foreign["status"] == "unknown"
-    assert stored == ref and len(ref) == 32, "32 belgili ref bazaga to'liq yoziladi"
+    assert stored == ref2 and len(ref2) == 32, "32 belgili ref bazaga to'liq yoziladi"
 
 
 def test_origin_and_ip_helpers():

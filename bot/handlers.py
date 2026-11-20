@@ -27,10 +27,10 @@ from aiogram.types import (
     FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    KeyboardButton,
     LinkPreviewOptions,
+    MenuButtonWebApp,
     Message,
-    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     ReplyParameters,
     TelegramObject,
     User,
@@ -57,7 +57,7 @@ from config import (
     WELCOME_IMAGE_RU_PATH,
     Config,
 )
-from db import CANCEL_ALREADY, CANCEL_EXPIRED, CANCEL_NOT_FOUND, UNNOTIFIED_BATCH, Database
+from db import CANCEL_ALREADY, CANCEL_EXPIRED, CANCEL_NOT_FOUND, UNNOTIFIED_BATCH, Database, utc_now
 from i18n import format_price, t
 from menu import MenuError, MenuProvider
 from validators import (
@@ -145,17 +145,13 @@ def result_params(result: dict | None) -> dict[str, str]:
     return {}
 
 
-async def build_webapp_url(config: Config, db: Database | None, user_id: int, lang: str | None) -> str:
-    """Mini App tugmasi havolasi - YAGONA joy. ?lang= doim; mijozning eng oxirgi buyurtmasi natijasi bazadan.
-
-    sendData() Mini App'ni yopadi va bot unga to'g'ridan-to'g'ri javob bera olmaydi, shuning uchun natija
-    keyingi ochilishda tugma havolasi orqali yetkaziladi. Telegram'da chatda bitta doimiy klaviatura bor:
-    yangi klaviatura eskisining o'rnini egallaydi. Natija bazadan olingani uchun klaviatura qayerda qayta
-    yuborilmasin (/start, /til, til tanlash, ...) yoki bot qayta yonsa ham natija yo'qolmaydi.
-    Mini App natijani idempotent qo'llaydi (bir xil natija qayta kelsa hech narsa o'zgarmaydi).
-    """
+async def build_webapp_url(config: Config, db: Database | None, user_id: int, lang: str | None, *,
+                           with_result: bool = True) -> str:
+    """Mini App havolasi - YAGONA joy (inline tugma, menyu tugmasi). ?lang= doim; with_result=True bo'lsa
+    mijozning eng oxirgi buyurtmasi natijasi ham bazadan (?ok= / ?rej= / ?cx= - eski sendData zaxira yo'li uchun;
+    Mini App uni idempotent qo'llaydi). Menyu tugmasi uchun with_result=False (u kamdan-kam yangilanadi)."""
     params = {"lang": i18n.normalize(lang)}
-    if db is not None:
+    if db is not None and with_result:
         try:
             params.update(result_params(await db.latest_result(user_id)))
         except Exception:
@@ -163,25 +159,58 @@ async def build_webapp_url(config: Config, db: Database | None, user_id: int, la
     return webapp_url_with_result(config.webapp_url, params)
 
 
-async def main_keyboard(config: Config, db: Database | None, user_id: int, lang: str | None) -> ReplyKeyboardMarkup:
-    # sendData() FAQAT reply-klaviatura tugmasi orqali ochilgan Mini App'da ishlaydi,
-    # shuning uchun inline tugma emas, KeyboardButton + WebAppInfo.
+async def webapp_info(config: Config, db: Database | None, user_id: int, lang: str | None, *,
+                      with_result: bool = True) -> WebAppInfo:
+    return WebAppInfo(url=await build_webapp_url(config, db, user_id, lang, with_result=with_result))
+
+
+async def order_keyboard(config: Config, db: Database | None, user_id: int, lang: str | None,
+                         extra_rows: list[list[InlineKeyboardButton]] | None = None) -> InlineKeyboardMarkup:
+    """Xabar ostidagi INLINE "Buyurtma berish" (web_app) tugmasi. Inline/menyu tugmasidan ochilgan Mini App'da
+    Telegram initData beradi - buyurtma bot serveriga HTTP orqali (POST /api/orders) yuboriladi."""
     lang = i18n.normalize(lang)
-    url = await build_webapp_url(config, db, user_id, lang)
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=t(lang, "btn.order"), web_app=WebAppInfo(url=url))]],
-        resize_keyboard=True,
-        is_persistent=True,
-        input_field_placeholder=t(lang, "kb.placeholder"),
-    )
+    button = InlineKeyboardButton(text=t(lang, "btn.order"), web_app=await webapp_info(config, db, user_id, lang))
+    return InlineKeyboardMarkup(inline_keyboard=[*(extra_rows or []), [button]])
+
+
+async def remove_reply_keyboard(bot: Bot, chat_id: int) -> None:
+    """Eski pastki (reply) klaviaturani olib tashlash: ReplyKeyboardRemove bilan qisqa xabar va darhol o'chirish."""
+    try:
+        sent = await bot.send_message(chat_id, "⌛", reply_markup=ReplyKeyboardRemove())
+    except Exception:
+        logger.exception("Pastki klaviatura olib tashlanmadi (chat_id=%s)", chat_id)
+        return
+    try:
+        await bot.delete_message(chat_id, sent.message_id)
+    except Exception:
+        pass
+
+
+async def set_menu_button(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> None:
+    """Matn maydoni yonidagi menyu tugmasi (shu mijoz chati uchun): "Buyurtma" / "Заказ" -> Mini App."""
+    lang = i18n.normalize(lang)
+    try:
+        await bot.set_chat_menu_button(
+            chat_id=user_id,
+            menu_button=MenuButtonWebApp(text=t(lang, "menu.btn"),
+                                         web_app=await webapp_info(config, db, user_id, lang, with_result=False)),
+        )
+    except Exception:
+        logger.exception("Menyu tugmasi o'rnatilmadi (user_id=%s)", user_id)
+
+
+async def switch_to_inline(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> None:
+    """Eski mijozni yangi interfeysga o'tkazish: pastki klaviatura olib tashlanadi, menyu tugmasi o'rnatiladi."""
+    await remove_reply_keyboard(bot, user_id)
+    await set_menu_button(bot, config, db, user_id, lang)
 
 
 WELCOME_FLAG = "w"  # callback_data "lang:ru:w" - til tanlangach salomlashuv yuboriladi (/start dan)
 
 
 def lang_keyboard(welcome: bool = False) -> InlineKeyboardMarkup:
-    """welcome=True (/start): tanlangach salomlashuv (rasm + matn + klaviatura).
-    welcome=False (/til): tanlangach qisqa tasdiq + yangi klaviatura."""
+    """welcome=True (/start): tanlangach salomlashuv (rasm + matn + inline "Buyurtma berish").
+    welcome=False (/til): tanlangach qisqa tasdiq + inline "Buyurtma berish"."""
     suffix = f":{WELCOME_FLAG}" if welcome else ""
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=t("uz", "lang.btn_uz"), callback_data=f"{LANG_PREFIX}uz{suffix}"),
@@ -190,8 +219,7 @@ def lang_keyboard(welcome: bool = False) -> InlineKeyboardMarkup:
 
 
 async def send_lang_prompt(bot: Bot, chat_id: int, welcome: bool = False) -> None:
-    """Til tanlash xabari (ikki tilda) va inline tugmalar.
-    Inline klaviatura chatdagi doimiy (reply) klaviaturaga tegmaydi - eski Mini App tugmasi ishlayveradi."""
+    """Til tanlash xabari (ikki tilda) va inline tugmalar."""
     try:
         await bot.send_message(chat_id, t("uz", "lang.prompt"), reply_markup=lang_keyboard(welcome))
     except Exception:
@@ -438,11 +466,12 @@ async def notify_admin(bot: Bot, config: Config, title: str, user: User | None, 
         logger.exception("Admin'ga xato logini yuborib bo'lmadi")
 
 
-async def safe_answer(message: Message, text: str, **kwargs) -> None:
+async def safe_answer(message: Message, text: str, **kwargs) -> Any:
     try:
-        await message.answer(text, **kwargs)
+        return await message.answer(text, **kwargs)
     except Exception:
         logger.exception("Mijozga javob yuborib bo'lmadi (user_id=%s)", message.chat.id)
+        return None
 
 
 # ---------------------------------------------------------------- salomlashuv
@@ -451,7 +480,8 @@ CAPTION_LIMIT = 1024  # Telegram photo caption chegarasi
 
 
 def build_welcome_caption(first_name: str | None, is_open: bool, lang: str | None = "uz") -> str:
-    """Salomlashuv matni (HTML) mijoz tilida. Ism tozalanadi va qisqartiriladi - 1024 belgidan oshmaydi."""
+    """Salomlashuv matni (HTML) mijoz tilida. Ism tozalanadi va qisqartiriladi.
+    1024 belgidan (rasm izohi chegarasi) oshsa send_welcome rasmni va matnni alohida yuboradi."""
     name = html.escape((first_name or t(lang, "welcome.friend"))[:64])
     lines = [
         t(lang, "welcome.hello", name=name),
@@ -464,7 +494,7 @@ def build_welcome_caption(first_name: str | None, is_open: bool, lang: str | Non
     if not is_open:
         lines += ["", t(lang, "welcome.closed", open=f"{OPEN_FROM:%H:%M}")]
     lines += ["", t(lang, "welcome.cta")]
-    return "\n".join(lines)[:CAPTION_LIMIT]
+    return "\n".join(lines)
 
 
 class WelcomePhoto:
@@ -486,38 +516,48 @@ def welcome_image_path(lang: str | None) -> Path:
 async def send_welcome(
     bot: Bot, chat_id: int, config: Config, db: Database | None, lang: str | None, first_name: str | None
 ) -> None:
-    """Salomlashuv: rasm (tilga mos) + matn + klaviatura. Rasm yuborilmasa - oddiy matn.
-    Shaxsiy chatda chat_id = user_id (klaviatura havolasidagi natija shu mijozniki)."""
+    """Salomlashuv: rasm (tilga mos) + matn + ostida inline "Buyurtma berish". Izoh 1024 belgidan oshsa -
+    rasm alohida, matn va tugma alohida xabarda. Rasm yuborilmasa - faqat matn va tugma.
+    Shaxsiy chatda chat_id = user_id."""
     lang = i18n.normalize(lang)
     caption = build_welcome_caption(first_name, business.is_open_now(), lang)
-    keyboard = await main_keyboard(config, db, chat_id, lang)
+    keyboard = await order_keyboard(config, db, chat_id, lang)
+    fits = len(caption) <= CAPTION_LIMIT
     path = welcome_image_path(lang)
     key = str(path)
 
+    async def photo(source) -> Any:
+        if fits:
+            return await bot.send_photo(chat_id, source, caption=caption, reply_markup=keyboard)
+        return await bot.send_photo(chat_id, source)
+
+    sent_photo = False
     # 1) Saqlangan file_id bilan (tez, qayta yuklamasdan)
     file_id = WelcomePhoto.file_ids.get(key)
     if file_id:
         try:
-            await bot.send_photo(chat_id, file_id, caption=caption, reply_markup=keyboard)
-            return
+            await photo(file_id)
+            sent_photo = True
         except Exception:
             logger.exception("Saqlangan file_id bilan rasm yuborilmadi - fayldan qayta yuklanadi")
             WelcomePhoto.file_ids.pop(key, None)
 
     # 2) Fayldan (photo sifatida, hujjat emas)
-    if path.is_file():
-        try:
-            sent = await bot.send_photo(chat_id, FSInputFile(path), caption=caption, reply_markup=keyboard)
-            if sent and sent.photo:
-                WelcomePhoto.file_ids[key] = sent.photo[-1].file_id
-            return
-        except Exception:
-            logger.exception("Salomlashuv rasmi yuborilmadi - matnli salomlashuv yuboriladi")
-    else:
-        logger.error("Salomlashuv rasmi topilmadi: %s - matnli salomlashuv yuboriladi", path)
+    if not sent_photo:
+        if path.is_file():
+            try:
+                sent = await photo(FSInputFile(path))
+                if sent and sent.photo:
+                    WelcomePhoto.file_ids[key] = sent.photo[-1].file_id
+                sent_photo = True
+            except Exception:
+                logger.exception("Salomlashuv rasmi yuborilmadi - matnli salomlashuv yuboriladi")
+        else:
+            logger.error("Salomlashuv rasmi topilmadi: %s - matnli salomlashuv yuboriladi", path)
 
-    # 3) Zaxira: oddiy matn
-    await bot.send_message(chat_id, caption, reply_markup=keyboard)
+    # 3) Matn alohida: izoh sig'magan yoki rasm yuborilmagan bo'lsa
+    if not (sent_photo and fits):
+        await bot.send_message(chat_id, caption, reply_markup=keyboard)
 
 
 # ---------------------------------------------------------------- /start, /til, til tanlash
@@ -525,7 +565,7 @@ async def send_welcome(
 @router.message(CommandStart())
 async def cmd_start(message: Message, bot: Bot) -> None:
     """/start har doim tilni so'raydi (til saqlangan bo'lsa ham, admin uchun ham).
-    Tanlangach - salomlashuv (on_lang_chosen). Shu oraliqda eski Mini App tugmasi chatda qoladi."""
+    Tanlangach - salomlashuv (on_lang_chosen)."""
     await send_lang_prompt(bot, message.chat.id, welcome=True)
 
 
@@ -540,7 +580,9 @@ async def on_lang_chosen(
     callback: CallbackQuery, bot: Bot, config: Config, db: Database, lang: str | None = None
 ) -> None:
     """Til tanlandi: saqlanadi (avvalgisi almashtiriladi).
-    /start dan yoki birinchi marta bo'lsa - salomlashuv; /til dan - tasdiq + yangi klaviatura.
+    /start dan yoki birinchi marta bo'lsa - salomlashuv; /til dan - qisqa tasdiq.
+    Ikkalasida ham: eski pastki klaviatura olib tashlanadi, menyu tugmasi yangi tilda o'rnatiladi,
+    xabar ostida inline "Buyurtma berish".
     callback_data: "lang:<til>" yoki "lang:<til>:w" (w - salomlashuv bilan)."""
     new_lang, _, flag = (callback.data or "")[len(LANG_PREFIX):].partition(":")
     if new_lang not in i18n.LANGS or flag not in ("", WELCOME_FLAG):
@@ -561,11 +603,12 @@ async def on_lang_chosen(
             await callback.message.edit_text(t(new_lang, "lang.picked"))
     except Exception:
         pass
+    await switch_to_inline(bot, config, db, user.id, new_lang)
     if first_time:
         await send_welcome(bot, user.id, config, db, new_lang, user.first_name)
     else:
         try:
-            keyboard = await main_keyboard(config, db, user.id, new_lang)
+            keyboard = await order_keyboard(config, db, user.id, new_lang)
             await bot.send_message(user.id, t(new_lang, "lang.changed"), reply_markup=keyboard)
         except Exception:
             logger.exception("Til o'zgargani haqidagi xabar yuborilmadi (user_id=%s)", user.id)
@@ -586,23 +629,59 @@ async def resolve_order_lang(db: Database, user: User, saved: str | None, payloa
     return lang
 
 
-@router.message(F.web_app_data)
-async def on_web_app_data(
-    message: Message,
+@dataclass(frozen=True)
+class OrderOutcome:
+    """Buyurtma natijasi (ikki yo'l uchun bir xil): accepted (n - raqam) yoki rejected (reason - sabab kodi)."""
+
+    status: str
+    order_id: int | None = None
+    reason: str | None = None
+    lang: str = "uz"
+    duplicate: bool = False  # shu (user_id, ref) avval qayta ishlangan - yangi buyurtma yaratilmadi
+
+    def as_json(self) -> dict:
+        return {"status": self.status, "n": self.order_id, "reason": self.reason}
+
+
+# reply(text, reply_markup=...) -> yuborilgan xabar yoki None (xato yutiladi)
+Reply = Callable[..., Awaitable[Any]]
+
+
+async def existing_outcome(db: Database, user_id: int, ref: str | None, lang: str) -> OrderOutcome | None:
+    """Idempotentlik: shu mijozning shu ref li buyurtmasi avval qayta ishlangan bo'lsa - o'sha natija."""
+    if not ref:
+        return None
+    try:
+        found = await db.order_status(ref, user_id=user_id)
+    except Exception:
+        logger.exception("Avvalgi natija tekshirilmadi (user_id=%s)", user_id)
+        return None
+    if found["status"] in ("accepted", "cancelled"):
+        return OrderOutcome("accepted", order_id=found["n"], lang=lang, duplicate=True)
+    if found["status"] == "rejected":
+        return OrderOutcome("rejected", reason=found["reason"], lang=lang, duplicate=True)
+    return None
+
+
+async def process_order(
+    *,
     bot: Bot,
     config: Config,
     menu_store: MenuProvider,
     db: Database,
     limiter: RateLimiter,
-    lang: str | None = None,
-) -> None:
-    user = message.from_user
-    if user is None:
-        return
+    user: User,
+    raw: str,
+    lang: str | None,
+    reply: Reply,
+) -> OrderOutcome:
+    """Buyurtmani qayta ishlash - YAGONA mantiq (sendData / web_app_data va POST /api/orders uchun).
 
-    raw = message.web_app_data.data if message.web_app_data else ""
-
-    # Mini App'dagi yozuv belgisi: javob tugma havolasi orqali qaytariladi
+    Ish vaqti -> 30 soniyalik himoya -> tekshiruv va narxni menu.json dan hisoblash (hudud, yetkazish) ->
+    saqlash -> mijozga tasdiq (ostida inline "Buyurtma berish") -> bekor qilish tugmasi (5 daqiqa) ->
+    admin'ga chek (xato bo'lsa notified=0, keyin qayta yuboriladi). Rad etilsa - sabab mijozga va bazaga
+    (last_rejections). Bir xil (user_id, ref) qayta kelsa - yangi buyurtma yaratilmaydi, xabar yuborilmaydi.
+    """
     try:
         data = parse_payload(raw)
         parse_error: ValidationError | None = None
@@ -611,29 +690,29 @@ async def on_web_app_data(
     ref = extract_ref(data)
     lang = await resolve_order_lang(db, user, lang, data)
 
-    async def rejected(code: str) -> ReplyKeyboardMarkup:
-        """Rad etish: natija bazaga yoziladi (last_rejections), klaviatura havolasi bazadan yasaladi."""
+    previous = await existing_outcome(db, user.id, ref, lang)
+    if previous is not None:
+        logger.info("Takroriy buyurtma so'rovi (user_id=%s) - avvalgi natija qaytarildi: %s", user.id, previous.status)
+        return previous
+
+    async def rejected(code: str, text: str) -> OrderOutcome:
+        """Rad etish: natija bazaga (last_rejections), mijozga sabab va inline "Buyurtma berish"."""
         if ref:
             try:
-                await db.record_rejection(user.id, ref, code, datetime.now(timezone.utc))
+                await db.record_rejection(user.id, ref, code, utc_now())
             except Exception:
                 logger.exception("Rad etish natijasi saqlanmadi (user_id=%s)", user.id)
-        return await main_keyboard(config, db, user.id, lang)
+        await reply(text, reply_markup=await order_keyboard(config, db, user.id, lang))
+        return OrderOutcome("rejected", reason=code, lang=lang)
 
     # 0) Ish vaqti (asosiy tekshiruv shu yerda; yopiq bo'lsa buyurtma bazaga yozilmaydi)
     if not business.is_open_now():
-        await safe_answer(
-            message,
-            t(lang, "order.closed", open=f"{OPEN_FROM:%H:%M}", close=f"{CLOSE_AT:%H:%M}"),
-            reply_markup=await rejected("closed"),
-        )
-        return
+        return await rejected("closed", t(lang, "order.closed", open=f"{OPEN_FROM:%H:%M}", close=f"{CLOSE_AT:%H:%M}"))
 
     # 1) Spam himoyasi (await'dan oldin - atomar)
     wait = limiter.try_acquire(user.id)
     if wait > 0:
-        await safe_answer(message, t(lang, "order.limit", sec=math.ceil(wait)), reply_markup=await rejected("limit"))
-        return
+        return await rejected("limit", t(lang, "order.limit", sec=math.ceil(wait)))
 
     # 2) Validatsiya + summani menyudan hisoblash
     try:
@@ -644,23 +723,18 @@ async def on_web_app_data(
     except ValidationError as exc:
         limiter.release(user.id)
         logger.warning("Noto'g'ri buyurtma (user_id=%s): %s", user.id, exc.detail)
-        await safe_answer(
-            message,
-            t(lang, "order.rejected", reason=html.escape(exc.message(lang))),
-            reply_markup=await rejected(exc.code),
-        )
+        outcome = await rejected(exc.code, t(lang, "order.rejected", reason=html.escape(exc.message(lang))))
         await notify_admin(bot, config, "Buyurtma rad etildi (validatsiya)", user, f"{exc.detail}\n\n{raw[:800]}")
-        return
+        return outcome
     except MenuError as exc:
         limiter.release(user.id)
         logger.exception("Menyu o'qilmadi")
-        await safe_answer(message, f"{t(lang, 'error.generic')}\n\n{t(lang, 'error.cart_saved')}",
-                          reply_markup=await rejected("server"))
+        outcome = await rejected("server", f"{t(lang, 'error.generic')}\n\n{t(lang, 'error.cart_saved')}")
         await notify_admin(bot, config, "menu.json o'qilmadi", user, str(exc))
-        return
+        return outcome
 
     # 3) Saqlash (telefon mijoz Telegram orqali ulashgan raqam bilan bir xilmi - tasdiqlangan belgisi)
-    created_at = datetime.now(timezone.utc)
+    created_at = utc_now()
     try:
         verified_phone = await db.get_verified_phone(user.id)
         phone_verified = verified_phone is not None and verified_phone == order.phone
@@ -669,24 +743,25 @@ async def on_web_app_data(
             client_ref=ref, phone_verified=phone_verified,
         )
     except Exception as exc:
+        # Parallel ikkinchi so'rov unique indeksga urilgan bo'lishi mumkin - unda birinchisining natijasi
+        same = await existing_outcome(db, user.id, ref, lang)
+        if same is not None:
+            return same
         limiter.release(user.id)
         logger.exception("Buyurtmani bazaga saqlashda xato")
-        await safe_answer(message, f"{t(lang, 'error.generic')}\n\n{t(lang, 'error.cart_saved')}",
-                          reply_markup=await rejected("server"))
+        outcome = await rejected("server", f"{t(lang, 'error.generic')}\n\n{t(lang, 'error.cart_saved')}")
         await notify_admin(bot, config, "Buyurtmani saqlashda xato", user, f"{type(exc).__name__}: {exc}")
-        return
+        return outcome
 
     # Tartib: 3) bazada saqlandi -> 4) mijozga tasdiq -> 5) bekor qilish tugmasi -> 6) admin'ga chek.
     # Admin'ga yetkazishdagi xato (ADMIN_ID noto'g'ri, admin /start bosmagan, Telegram xatosi) buyurtmani
     # bekor qilmaydi va mijoz tasdig'ini to'xtatmaydi: notified=0 qoladi, resend_unnotified() keyin yuboradi.
 
-    # 4) Mijozga tasdiq o'z tilida (havolada bazadagi natija ?ok=<ref>&n=<raqam>: Mini App savatni tozalaydi)
-    await safe_answer(message, build_customer_text(order_id, order, lang),
-                      reply_markup=await main_keyboard(config, db, user.id, lang))
+    # 4) Mijozga tasdiq o'z tilida, ostida inline "Buyurtma berish" (yangi buyurtma uchun)
+    await reply(build_customer_text(order_id, order, lang), reply_markup=await order_keyboard(config, db, user.id, lang))
 
-    # 5) Bekor qilish tugmasi - alohida xabarda (bitta xabarda ham reply-, ham inline-klaviatura bo'lolmaydi;
-    #    yuqoridagi reply-klaviaturadagi natijali havola shu tufayli buzilmaydi)
-    await send_cancel_offer(bot, message, order_id, lang)
+    # 5) Bekor qilish tugmasi - alohida xabarda (5 daqiqadan keyin tugma olib tashlanadi)
+    await send_cancel_offer(bot, user.id, reply, order_id, lang)
 
     # 6) Admin'ga chek (o'zbekcha)
     try:
@@ -701,7 +776,33 @@ async def on_web_app_data(
                 order_id, user.id, lang, order.items_total, order.delivery_fee, order.total, delivered)
     if not delivered:
         # Mijoz qayta buyurtma bermasligi uchun (buyurtma saqlangan, avtomatik qayta yuboriladi)
-        await safe_answer(message, t(lang, "order.delayed"))
+        await reply(t(lang, "order.delayed"))
+    return OrderOutcome("accepted", order_id=order_id, lang=lang)
+
+
+@router.message(F.web_app_data)
+async def on_web_app_data(
+    message: Message,
+    bot: Bot,
+    config: Config,
+    menu_store: MenuProvider,
+    db: Database,
+    limiter: RateLimiter,
+    lang: str | None = None,
+) -> None:
+    """ZAXIRA yo'l: eski pastki (reply) klaviatura tugmasidan ochilgan Mini App sendData() bilan yuboradi.
+    Mantiq - process_order (POST /api/orders bilan bir xil). Keyin mijoz yangi interfeysga o'tkaziladi."""
+    user = message.from_user
+    if user is None:
+        return
+    raw = message.web_app_data.data if message.web_app_data else ""
+
+    async def reply(text: str, **kwargs) -> Any:
+        return await safe_answer(message, text, **kwargs)
+
+    outcome = await process_order(bot=bot, config=config, menu_store=menu_store, db=db, limiter=limiter,
+                                  user=user, raw=raw, lang=lang, reply=reply)
+    await switch_to_inline(bot, config, db, user.id, outcome.lang)
 
 
 # ---------------------------------------------------------------- bekor qilish (5 daqiqa)
@@ -712,20 +813,17 @@ def cancel_keyboard(order_id: int, lang: str | None = "uz") -> InlineKeyboardMar
     ]])
 
 
-async def send_cancel_offer(bot: Bot, message: Message, order_id: int, lang: str | None = "uz") -> None:
+async def send_cancel_offer(bot: Bot, chat_id: int, reply: Reply, order_id: int, lang: str | None = "uz") -> None:
     minutes = CANCEL_WINDOW_SECONDS // 60
     try:
-        sent = await message.answer(
-            t(lang, "cancel.offer", id=order_id, min=minutes),
-            reply_markup=cancel_keyboard(order_id, lang),
-        )
+        sent = await reply(t(lang, "cancel.offer", id=order_id, min=minutes), reply_markup=cancel_keyboard(order_id, lang))
     except Exception:
         logger.exception("Bekor qilish tugmasi yuborilmadi (order_id=%s)", order_id)
         return
     message_id = getattr(sent, "message_id", None)
     if message_id is not None:
         # Muddat tugagach tugma olib tashlanadi (bot qayta yonsa ham - bosilganda muddat baribir tekshiriladi)
-        _keep_task(asyncio.create_task(_expire_cancel_button(bot, message.chat.id, message_id, order_id, lang)))
+        _keep_task(asyncio.create_task(_expire_cancel_button(bot, chat_id, message_id, order_id, lang)))
 
 
 _background_tasks: set[asyncio.Task] = set()
@@ -773,12 +871,12 @@ async def on_cancel_order(
     await callback.answer(t(lang, "cancel.done_alert"))
     await _safe_edit(callback, t(lang, "cancel.done_edit", id=order_id))
 
-    # Mijozga: Mini App tarixida ham "Bekor qilindi" bo'lishi uchun natijali havola (bazadan: ?cx=<ref>)
+    # Mijozga: ostida inline "Buyurtma berish" (havolada bazadagi natija ?cx=<ref> - Mini App tarixi uchun)
     try:
         await bot.send_message(
             callback.from_user.id,
             t(lang, "cancel.done_msg", id=order_id),
-            reply_markup=await main_keyboard(config, db, callback.from_user.id, lang),
+            reply_markup=await order_keyboard(config, db, callback.from_user.id, lang),
         )
     except Exception:
         logger.exception("Mijozga bekor qilish xabari yuborilmadi (order_id=%s)", order_id)
@@ -979,9 +1077,16 @@ async def send_excel(message: Message, period_arg: str, db: Database) -> None:
 # ---------------------------------------------------------------- boshqa xabarlar
 
 @router.message(F.text)
-async def fallback_text(message: Message, lang: str | None = None) -> None:
-    # Klaviatura qayta yuborilmaydi: aks holda oxirgi buyurtma natijasi (tugma havolasi) o'chib ketadi
-    await message.answer(t(lang, "fallback", btn=t(lang, "btn.order")))
+async def fallback_text(message: Message, bot: Bot, config: Config, db: Database, lang: str | None = None) -> None:
+    """Boshqa har qanday matn: eski pastki klaviatura olib tashlanadi, menyu tugmasi o'rnatiladi va
+    inline "Buyurtma berish" yuboriladi (eski mijozlarni yangi interfeysga ko'chirish).
+    Admin buyruqlari bu yerga kelmaydi - ular o'z handlerida (begona foydalanuvchiga javob berilmaydi)."""
+    user = message.from_user
+    if user is None or _command_name(message.text) in ADMIN_COMMANDS:
+        return
+    await switch_to_inline(bot, config, db, user.id, lang)
+    await safe_answer(message, t(lang, "fallback", btn=t(lang, "btn.order")),
+                      reply_markup=await order_keyboard(config, db, user.id, lang))
 
 
 @router.errors()

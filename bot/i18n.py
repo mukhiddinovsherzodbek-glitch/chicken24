@@ -25,7 +25,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "lang.btn_uz": "🇺🇿 O'zbekcha",
         "lang.btn_ru": "🇷🇺 Русский",
         "lang.picked": "🇺🇿 O'zbekcha tanlandi",
-        "lang.changed": "✅ Til o'zgartirildi: O'zbekcha.\nBuyurtma berish uchun pastdagi tugmani bosing 👇",
+        "lang.changed": "✅ Til o'zgartirildi: O'zbekcha.\nBuyurtma berish uchun quyidagi tugmani bosing 👇",
         # --- salomlashuv
         "welcome.hello": "Assalomu alaykum, {name}! 👋",
         "welcome.friend": "do'stim",
@@ -34,10 +34,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "welcome.delivery": "🚚 Yetkazish: {fee} ({area} bo'ylab)",
         "welcome.payment": "💵 To'lov: naqd",
         "welcome.closed": "⛔ Hozir yopiqmiz, {open} da ochamiz.",
-        "welcome.cta": "Buyurtma berish uchun pastdagi tugmani bosing 👇",
+        "welcome.cta": "Buyurtma berish uchun quyidagi tugmani bosing 👇",
         # --- klaviatura
         "btn.order": "Buyurtma berish",
-        "kb.placeholder": "Buyurtma berish uchun tugmani bosing",
+        "menu.btn": "Buyurtma",  # matn maydoni yonidagi menyu tugmasi (qisqa)
         "currency": "so'm",
         # --- buyurtma rad etildi
         "order.closed": (
@@ -76,11 +76,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "cancel.too_late": "Bekor qilish muddati ({min} daqiqa) tugagan. Buyurtma tayyorlanmoqda.",
         "cancel.done_alert": "Buyurtma bekor qilindi",
         "cancel.done_edit": "🚫 Buyurtma #{id} bekor qilindi.",
-        "cancel.done_msg": "🚫 Buyurtma #{id} bekor qilindi. Yangi buyurtma uchun pastdagi tugmani bosing.",
+        "cancel.done_msg": "🚫 Buyurtma #{id} bekor qilindi. Yangi buyurtma uchun quyidagi tugmani bosing.",
         # --- boshqa
         "fallback": (
-            "Buyurtma berish uchun pastdagi <b>«{btn}»</b> tugmasini bosing.\n"
-            "Tugma ko'rinmasa, /start yozing."
+            "Buyurtma berish uchun quyidagi <b>«{btn}»</b> tugmasini bosing 👇\n"
+            "Yoki matn maydoni yonidagi «Buyurtma» menyu tugmasidan foydalaning."
         ),
         # --- buyurtma tekshiruvi (validators.py)
         "val.empty": "Buyurtma ma'lumoti bo'sh keldi.",
@@ -130,7 +130,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "welcome.closed": "⛔ Сейчас мы закрыты, откроемся в {open}.",
         "welcome.cta": "Чтобы сделать заказ, нажмите кнопку ниже 👇",
         "btn.order": "Сделать заказ",
-        "kb.placeholder": "Нажмите кнопку, чтобы сделать заказ",
+        "menu.btn": "Заказ",
         "currency": "сум",
         "order.closed": (
             "⛔ Заказ не принят.\nПричина: сейчас мы закрыты. Мы работаем с {open} до {close}.\n\n"
@@ -168,8 +168,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "cancel.done_edit": "🚫 Заказ #{id} отменён.",
         "cancel.done_msg": "🚫 Заказ #{id} отменён. Для нового заказа нажмите кнопку ниже.",
         "fallback": (
-            "Чтобы сделать заказ, нажмите кнопку <b>«{btn}»</b> ниже.\n"
-            "Если кнопки не видно, отправьте /start."
+            "Чтобы сделать заказ, нажмите кнопку <b>«{btn}»</b> ниже 👇\n"
+            "Или воспользуйтесь кнопкой меню «Заказ» рядом с полем ввода."
         ),
         "val.empty": "Данные заказа не получены.",
         "val.too_big": "Слишком большой заказ.",

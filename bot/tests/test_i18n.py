@@ -29,7 +29,7 @@ from handlers import (  # noqa: E402
     on_lang_chosen,
     on_web_app_data,
 )
-from test_flow import Env, FakeBot, good, make_message  # noqa: E402
+from test_flow import Env, FakeBot, good, make_message, order_button  # noqa: E402
 
 business.is_open_now = lambda: True
 
@@ -278,10 +278,10 @@ def test_choosing_language_sends_welcome_with_right_image():
     assert edits_ru == ["🇷🇺 Выбран русский язык"] and edits_uz == ["🇺🇿 O'zbekcha tanlandi"]
     (c1, p1, cap1, kb1), (c2, p2, cap2, kb2) = bot.photos
     assert Path(p1.path) == WELCOME_IMAGE_RU_PATH and cap1.startswith("Здравствуйте, Ali!")
-    assert kb1.keyboard[0][0].text == "Сделать заказ"
-    assert parse_qs(urlparse(kb1.keyboard[0][0].web_app.url).query) == {"lang": ["ru"]}
+    assert order_button(kb1).text == "Сделать заказ"
+    assert parse_qs(urlparse(order_button(kb1).web_app.url).query) == {"lang": ["ru"]}
     assert Path(p2.path) == WELCOME_IMAGE_PATH and cap2.startswith("Assalomu alaykum, Ali!")
-    assert parse_qs(urlparse(kb2.keyboard[0][0].web_app.url).query) == {"lang": ["uz"]}
+    assert parse_qs(urlparse(order_button(kb2).web_app.url).query) == {"lang": ["uz"]}
 
 
 def test_til_command_changes_language_and_resends_keyboard():
@@ -301,8 +301,8 @@ def test_til_command_changes_language_and_resends_keyboard():
     assert lang == "ru"
     assert len(prompts(bot)) == 1  # /til - til tanlash xabari
     confirm = [s for s in bot.sent if s[0] == "message" and s[2].startswith("✅ Язык изменён")]
-    assert confirm and confirm[0][3]["reply_markup"].keyboard[0][0].text == "Сделать заказ"
-    url = confirm[0][3]["reply_markup"].keyboard[0][0].web_app.url
+    assert confirm and order_button(confirm[0][3]["reply_markup"]).text == "Сделать заказ"
+    url = order_button(confirm[0][3]["reply_markup"]).web_app.url
     assert parse_qs(urlparse(url).query) == {"lang": ["ru"]}
     assert bot.photos == [], "tilni almashtirganda salomlashuv rasmi qayta yuborilmaydi"
 
@@ -345,8 +345,8 @@ def test_start_always_asks_language_even_if_saved():
     assert lang == "ru" and edits == ["🇷🇺 Выбран русский язык"]
     photo, caption, markup = bot.photos[0][1], bot.photos[0][2], bot.photos[0][3]
     assert Path(photo.path) == WELCOME_IMAGE_RU_PATH and caption.startswith("Здравствуйте, Ali!")
-    assert markup.keyboard[0][0].text == "Сделать заказ"
-    assert parse_qs(urlparse(markup.keyboard[0][0].web_app.url).query) == {"lang": ["ru"]}
+    assert order_button(markup).text == "Сделать заказ"
+    assert parse_qs(urlparse(order_button(markup).web_app.url).query) == {"lang": ["ru"]}
     assert not [s for s in bot.sent if s[0] == "message" and s[2].startswith("✅ Язык изменён")]
 
 
@@ -403,9 +403,9 @@ def test_order_answer_in_russian_admin_receipt_in_uzbek():
     assert text.startswith("✅ <b>Ваш заказ принят!</b>") and "Номер заказа: <b>#1</b>" in text
     assert "Klassik burger × 2 = 50 000 сум" in text, "taom nomi o'zbekcha, valyuta ruscha"
     assert "Итого: 90 000 сум" in text and "Оплата: наличными курьеру" in text
-    q = parse_qs(urlparse(markup.keyboard[0][0].web_app.url).query)
+    q = parse_qs(urlparse(order_button(markup).web_app.url).query)
     assert q == {"lang": ["ru"], "ok": ["abc123xyz"], "n": ["1"]}
-    assert markup.keyboard[0][0].text == "Сделать заказ"
+    assert order_button(markup).text == "Сделать заказ"
     offer_text, offer_markup = answers[1]
     assert offer_text.startswith("Передумали?") and offer_markup.inline_keyboard[0][0].text == "❌ Отменить заказ"
     receipt = sent[0][2]
@@ -423,7 +423,7 @@ def test_rejection_in_russian_area():
 
     text, markup = run(scenario())[0]
     assert text.startswith("❌ Заказ не принят.") and "г. Самарканд" in text
-    assert parse_qs(urlparse(markup.keyboard[0][0].web_app.url).query)["r"] == ["area"]
+    assert parse_qs(urlparse(order_button(markup).web_app.url).query)["r"] == ["area"]
 
 
 def test_order_without_saved_lang_uses_payload_lang_and_saves_it():
@@ -462,17 +462,33 @@ def test_closed_and_limit_in_russian():
 
 
 def test_fallback_text_in_customer_language():
+    """Har qanday matn (eski mijoz ham): pastki klaviatura olib tashlanadi, menyu tugmasi va inline tugma."""
     async def scenario():
+        env = Env()
+        await env.db.connect()
+        bot = LangBot()
         out: list = []
 
         async def answer(text, **kw):
-            out.append(text)
-        await handlers.fallback_text(SimpleNamespace(answer=answer), lang="ru")
-        await handlers.fallback_text(SimpleNamespace(answer=answer), lang="uz")
-        return out
+            out.append((text, kw.get("reply_markup")))
 
-    ru, uz = run(scenario())
+        def msg(text):
+            return SimpleNamespace(answer=answer, text=text, chat=SimpleNamespace(id=5),
+                                   from_user=SimpleNamespace(id=5))
+
+        await handlers.fallback_text(msg("salom"), bot, env.config, env.db, lang="ru")
+        await handlers.fallback_text(msg("salom"), bot, env.config, env.db, lang="uz")
+        await handlers.fallback_text(msg("/excel"), bot, env.config, env.db, lang="uz")  # admin buyrug'i - javobsiz
+        await env.db.close()
+        return out, bot
+
+    out, bot = run(scenario())
+    (ru, ru_kb), (uz, uz_kb) = out
+    assert len(out) == 2, "begona foydalanuvchining admin buyrug'iga javob yo'q"
     assert "«Сделать заказ»" in ru and "«Buyurtma berish»" in uz
+    assert order_button(ru_kb).text == "Сделать заказ" and order_button(uz_kb).text == "Buyurtma berish"
+    assert bot.kb_removed == [5, 5], "pastki klaviatura olib tashlandi"
+    assert [b.text for _, b in bot.menu_buttons] == ["Заказ", "Buyurtma"]
 
 
 if __name__ == "__main__":

@@ -1,6 +1,19 @@
-"""Mini App uchun buyurtma holati: GET /api/order-status?ref=<client_ref>.
+"""Mini App API (bot serveri, faqat webhook rejimida):
 
-Mini App ochiq turganda bot unga natija yubora olmaydi - shuning uchun Mini App holatni o'zi so'raydi.
+- POST /api/orders              - buyurtma (inline/menyu tugmasidan ochilgan Mini App; initData SHART).
+- GET  /api/order-status?ref=   - buyurtma holati (sendData zaxira yo'li va tarmoq xatosidan keyin tekshirish).
+
+POST /api/orders:
+- `Authorization: tma <initData>` - imzo Telegram qoidasi bo'yicha (HMAC-SHA256, "WebAppData" + bot tokeni,
+  constant-time), auth_date 24 soatdan eski - rad. user_id FAQAT initData dan (tanadagi user_id e'tiborsiz).
+  initData bo'sh yoki noto'g'ri - 401.
+- Mantiq web_app_data bilan BIR XIL: handlers.process_order (narx menu.json dan, ish vaqti, hudud, 30 soniya,
+  admin cheki, mijozga tasdiq). Idempotent: (user_id, client_ref) takror kelsa - avvalgi natija.
+- Javob: {"status": "accepted"|"rejected", "n": raqam, "reason": kod} - shaxsiy ma'lumotsiz.
+- Tana 20 KB gacha, noto'g'ri JSON - 400, foydalanuvchiga daqiqasiga 6 so'rov (429).
+  CORS: POST + OPTIONS, faqat Mini App origin'i; Authorization va Content-Type sarlavhalari.
+
+GET /api/order-status:
 
 Xavfsizlik - buyurtmaning client_ref'i o'zi sir:
 - Yangi ref'lar 32 belgi (128 bit, crypto.getRandomValues) - taxmin qilib bo'lmaydi.
@@ -17,6 +30,7 @@ Xavfsizlik - buyurtmaning client_ref'i o'zi sir:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import json
@@ -26,13 +40,17 @@ from collections import deque
 from typing import Any, Callable
 from urllib.parse import parse_qsl, urlsplit
 
+from aiogram.types import User
 from aiohttp import web
 
-from validators import REF_RE
+from validators import REF_RE, extract_ref
 
 logger = logging.getLogger(__name__)
 
 STATUS_PATH = "/api/order-status"
+ORDERS_PATH = "/api/orders"
+MAX_BODY_BYTES = 20 * 1024
+SUBMIT_LIMIT_PER_MINUTE = 6               # foydalanuvchi boshiga (30 soniyalik buyurtma cheklovi alohida)
 INIT_DATA_MAX_AGE_SECONDS = 24 * 60 * 60
 INIT_DATA_MAX_FUTURE_SECONDS = 5 * 60     # soat farqi uchun kichik zaxira
 INIT_DATA_MAX_LEN = 4096
@@ -63,6 +81,12 @@ def init_data_hash(fields: dict[str, str], bot_token: str) -> str:
 def validate_init_data(init_data: str, bot_token: str, *, now: float | None = None,
                        max_age: float = INIT_DATA_MAX_AGE_SECONDS) -> int:
     """initData ni tekshiradi va Telegram user_id ni qaytaradi. Xato bo'lsa InitDataError."""
+    return parse_init_data(init_data, bot_token, now=now, max_age=max_age)["id"]
+
+
+def parse_init_data(init_data: str, bot_token: str, *, now: float | None = None,
+                    max_age: float = INIT_DATA_MAX_AGE_SECONDS) -> dict:
+    """initData ni tekshiradi va foydalanuvchi ma'lumotini qaytaradi (id - int, qolganlari - str yoki None)."""
     if not init_data or len(init_data) > INIT_DATA_MAX_LEN:
         raise InitDataError("length")
     try:
@@ -90,7 +114,13 @@ def validate_init_data(init_data: str, bot_token: str, *, now: float | None = No
         raise InitDataError("user") from None
     if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
         raise InitDataError("user")
-    return user_id
+
+    def text(key: str, limit: int = 128) -> str | None:
+        value = user.get(key)
+        return value[:limit] if isinstance(value, str) and value else None
+
+    return {"id": user_id, "first_name": text("first_name") or "", "last_name": text("last_name"),
+            "username": text("username", 64), "language_code": text("language_code", 16)}
 
 
 def init_data_from_request(request: web.Request) -> str:
@@ -184,17 +214,7 @@ class OrderStatusAPI:
         app.router.add_route("OPTIONS", STATUS_PATH, self.handle_preflight)
 
     async def handle_preflight(self, request: web.Request) -> web.Response:
-        if request.headers.get("Origin", "").lower().rstrip("/") != self._origin:
-            return web.Response(status=403)
-        if request.headers.get("Access-Control-Request-Method", "GET").upper() != "GET":
-            return web.Response(status=403)
-        return web.Response(status=204, headers={
-            "Access-Control-Allow-Origin": self._origin,
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": ALLOWED_HEADERS,
-            "Access-Control-Max-Age": "600",
-            "Vary": "Origin",
-        })
+        return preflight(request, self._origin, "GET", ALLOWED_HEADERS)
 
     async def handle_status(self, request: web.Request) -> web.Response:
         if not self._origin_ok(request):
@@ -224,3 +244,115 @@ class OrderStatusAPI:
             "n": result.get("n"),
             "reason": result.get("reason"),
         })
+
+
+def preflight(request: web.Request, origin: str, method: str, headers: str) -> web.Response:
+    """CORS preflight: faqat Mini App origin'i va faqat shu marshrutning usuli."""
+    if request.headers.get("Origin", "").lower().rstrip("/") != origin:
+        return web.Response(status=403)
+    if request.headers.get("Access-Control-Request-Method", method).upper() != method:
+        return web.Response(status=403)
+    return web.Response(status=204, headers={
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": method,
+        "Access-Control-Allow-Headers": headers,
+        "Access-Control-Max-Age": "600",
+        "Vary": "Origin",
+    })
+
+
+class OrderSubmitAPI:
+    """POST /api/orders - Mini App buyurtmasi HTTP orqali (inline/menyu tugmasidan ochilganda)."""
+
+    def __init__(self, *, bot: Any, config: Any, menu_store: Any, db: Any, limiter: Any,
+                 ready: asyncio.Event | None = None, process: Callable[..., Any] | None = None,
+                 clock: Callable[[], float] = time.time, monotonic: Callable[[], float] = time.monotonic) -> None:
+        if process is None:
+            import handlers  # handlers orderapi'ni import qilmaydi - aylana yo'q
+            process = handlers.process_order
+        self._bot = bot
+        self._config = config
+        self._menu_store = menu_store
+        self._db = db
+        self._limiter = limiter          # 30 soniyalik buyurtma cheklovi - web_app_data bilan UMUMIY
+        self._ready = ready
+        self._process = process
+        self._clock = clock
+        self._origin = origin_of(config.webapp_url)
+        self.user_limiter = WindowLimiter(SUBMIT_LIMIT_PER_MINUTE, 60.0, monotonic)
+        self._locks: dict[tuple[int, str], asyncio.Lock] = {}
+
+    def register(self, app: web.Application) -> None:
+        app.router.add_route("POST", ORDERS_PATH, self.handle_create)
+        app.router.add_route("OPTIONS", ORDERS_PATH, self.handle_preflight)
+
+    async def handle_preflight(self, request: web.Request) -> web.Response:
+        return preflight(request, self._origin, "POST", "Authorization, Content-Type")
+
+    def _json(self, request: web.Request, status: int, body: dict, **extra: str) -> web.Response:
+        headers = {"Vary": "Origin", "Cache-Control": "no-store", **extra}
+        if request.headers.get("Origin", "").lower().rstrip("/") == self._origin:
+            headers["Access-Control-Allow-Origin"] = self._origin
+        return web.json_response(body, status=status, headers=headers)
+
+    async def _reply_to(self, user_id: int, text: str, **kwargs: Any) -> Any:
+        try:
+            return await self._bot.send_message(user_id, text, **kwargs)
+        except Exception as exc:  # noqa: BLE001 - mijoz botni bloklagan bo'lishi mumkin
+            logger.warning("Mijozga xabar yuborilmadi (user_id=%s): %s", user_id, type(exc).__name__)
+            return None
+
+    async def handle_create(self, request: web.Request) -> web.Response:
+        origin = request.headers.get("Origin")
+        if origin is not None and origin.lower().rstrip("/") != self._origin:
+            return self._json(request, 403, {"error": "forbidden"})
+        if self._ready is not None and not self._ready.is_set():
+            return self._json(request, 503, {"error": "unavailable"})
+        try:
+            tg = parse_init_data(init_data_from_request(request), self._config.bot_token, now=self._clock())
+        except InitDataError:
+            return self._json(request, 401, {"error": "unauthorized"})
+        user_id = tg["id"]  # FAQAT initData dan
+        wait = self.user_limiter.retry_after(user_id)
+        if wait > 0:
+            return self._json(request, 429, {"error": "too_many_requests"}, **{"Retry-After": str(max(1, round(wait)))})
+        if request.content_type != "application/json":
+            return self._json(request, 400, {"error": "bad_request"})
+        if request.content_length is not None and request.content_length > MAX_BODY_BYTES:
+            return self._json(request, 413, {"error": "too_large"})
+        body = await request.content.read(MAX_BODY_BYTES + 1)
+        if len(body) > MAX_BODY_BYTES:
+            return self._json(request, 413, {"error": "too_large"})
+        try:
+            raw = body.decode("utf-8")
+            data = json.loads(raw)
+        except (UnicodeDecodeError, ValueError):
+            return self._json(request, 400, {"error": "bad_request"})
+        ref = extract_ref(data) if isinstance(data, dict) else None
+        if ref is None:  # idempotentlik uchun ref shart
+            return self._json(request, 400, {"error": "bad_request"})
+
+        user = User(id=user_id, is_bot=False, first_name=tg["first_name"], last_name=tg["last_name"],
+                    username=tg["username"], language_code=tg["language_code"])
+        try:
+            lang = await self._db.get_user_lang(user_id)
+        except Exception:  # noqa: BLE001
+            lang = None
+
+        key = (user_id, ref)
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        try:
+            async with lock:  # bir xil (user, ref) parallel kelsa - ikkinchisi birinchisining natijasini oladi
+                outcome = await self._process(
+                    bot=self._bot, config=self._config, menu_store=self._menu_store, db=self._db,
+                    limiter=self._limiter, user=user, raw=raw, lang=lang,
+                    reply=lambda text, **kw: self._reply_to(user_id, text, **kw),
+                )
+        except Exception as exc:  # noqa: BLE001 - tafsilot javobga ham, logga ham yo'q
+            logger.warning("Buyurtma qayta ishlanmadi (%s)", type(exc).__name__)
+            return self._json(request, 503, {"error": "unavailable"})
+        finally:
+            with contextlib.suppress(KeyError):
+                if not lock.locked():
+                    del self._locks[key]
+        return self._json(request, 200, outcome.as_json())

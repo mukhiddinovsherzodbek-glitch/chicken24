@@ -263,17 +263,45 @@ def test_order_ref_is_crypto_random_and_init_data_optional():
     fn = fn[:fn.index("\n  }\n")]
     assert "crypto.getRandomValues" in fn and "new Uint8Array(16)" in fn, "128 bit"
     assert "Math.random" not in code, "ref uchun Math.random ishlatilmasin"
-    assert "const localId = newOrderRef();" in code
+    assert "const localId = retryRef || newOrderRef();" in code
     enabled = code[code.index("function statusPollEnabled()"):]
     enabled = enabled[:enabled.index("\n  }\n")]
     assert "initData" not in enabled, "initData bo'sh bo'lsa ham so'rash ishlaydi"
     assert "headers: initData ? { Authorization: `tma ${initData}` } : {}" in code
-    assert "resp.status === 401" not in code
+    fetch_status = code[code.index("async function fetchOrderStatus("):code.index("function rerenderQuietly(")]
+    assert "resp.status === 401" not in fetch_status, "holat so'rash initData'ga bog'liq emas"
     # 'lost' holati: savat ustidagi qator va tarixdagi yozuv
     assert "T('notice.lost')" in code and "T('status.lost')" in code
     d = load_miniapp_i18n()
     assert d["uz"]["notice.lost"] == "⚠️ Buyurtma botga yetib bormadi. Qayta yuboring."
     assert "не дошёл до бота" in d["ru"]["notice.lost"]
+
+
+
+def test_http_order_submit_flow():
+    """Inline/menyu tugmasi (initData bor): POST /api/orders; initData bo'sh: sendData zaxira yo'li."""
+    code = strip_js_comments((MINIAPP / "app.js").read_text(encoding="utf-8"))
+    post = code[code.index("async function postOrder("):code.index("async function submitViaServer(")]
+    assert "`${API_BASE}/api/orders`" in post and "method: 'POST'" in post
+    assert "'Content-Type': 'application/json'" in post and "Authorization: `tma ${tg.initData}`" in post
+    assert "ORDER_POST_TIMEOUT_MS = 45 * 1000" in code and "ctrl.abort()" in post
+    via = code[code.index("async function submitViaServer("):code.index("function setSubmitting(")]
+    # javob kelmasa - AVVAL holat tekshiriladi; faqat "unknown"/aniq rad bo'lsa yozuv olib tashlanadi
+    assert via.index("fetchOrderStatus(localId)") < via.index("removeOrder(localId)")
+    assert "data.status === 'unknown'" in via and "co.retryRef = localId" in via
+    assert "tg.close()" in via and "state.lastRejection" in via
+    for word in ("T('toast.send_retry')", "T('toast.send_unknown')", "T('toast.reopen')"):
+        assert word in via, word
+    enabled = code[code.index("function serverOrderEnabled()"):]
+    enabled = enabled[:enabled.index("\n  }\n")]
+    assert "tg.initData" in enabled and "API_BASE" in enabled
+    submit = code[code.index("function submitOrder()"):]
+    assert submit.index("if (serverOrderEnabled())") < submit.index("tg.sendData(json)"), "sendData - zaxira"
+    assert "const localId = retryRef || newOrderRef();" in submit, "qayta yuborish o'sha ref bilan"
+    assert "T('notice.not_accepted'" in code
+    d = load_miniapp_i18n()
+    for key in ("toast.send_retry", "toast.send_unknown", "toast.reopen", "notice.not_accepted"):
+        assert d["uz"][key] and d["ru"][key] and d["uz"][key] != d["ru"][key], key
 
 
 def test_config_api_base_allowed_by_csp():
@@ -326,7 +354,7 @@ def test_scripts_loaded_in_order_with_same_version():
     srcs = re.findall(r'<script src="(i18n|config|result|app)\.js\?v=(\d+)"', html)
     assert [s[0] for s in srcs] == ["i18n", "config", "result", "app"]
     versions = set(re.findall(r'\?v=(\d+)', html))
-    assert len(versions) == 1 and int(versions.pop()) >= 14
+    assert len(versions) == 1 and int(versions.pop()) >= 15
 
 
 if __name__ == "__main__":

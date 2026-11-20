@@ -154,7 +154,9 @@
       locCanOpenSettings: false,
       touched: { name: false, phone: false },
       submitting: false,
+      retryRef: '', // javobi noma'lum qolgan buyurtma ref'i - qayta yuborilsa o'sha ref ishlatiladi
     },
+    lastRejection: null, // { ref, code } - shu ochilishda HTTP orqali rad etilgan buyurtma (savat ustida sabab)
   };
 
   // ---------------------------------------------------------------- yordamchilar
@@ -995,7 +997,11 @@
     let notice = null;
     const latest = getOrders()[0];
     const pending = lastPendingOrder();
-    if (latest && latest.status === 'lost') {
+    const rej = state.lastRejection;
+    if (rej && latest && latest.localId === rej.ref && latest.status === 'rejected') {
+      // Shu ochilishda HTTP orqali rad etildi - sabab qisqa (bot chatiga ham xabar boradi)
+      notice = h('div', { class: 'notice err' }, T('notice.not_accepted', { reason: rejectReason(rej.code) }));
+    } else if (latest && latest.status === 'lost') {
       notice = h('div', { class: 'notice err' }, T('notice.lost'));
     } else if (pending && msSince(pending.date) < PENDING_STALE_MS) {
       notice = h('div', { class: 'notice info' }, T('notice.pending', { time: fmtDate(pending.date).slice(-5) }));
@@ -1442,6 +1448,92 @@
     return { ok, name, addressText };
   }
 
+  // ---------------------------------------------------------------- yuborish: bot serveriga HTTP
+  /*
+   * Inline yoki menyu tugmasidan ochilgan Mini App'da sendData() ishlamaydi, lekin Telegram initData beradi:
+   * buyurtma POST {API_BASE}/api/orders ga yuboriladi (Authorization: tma <initData>). Server mantiqi
+   * sendData bilan bir xil (bot/handlers.py -> process_order). Javob:
+   *   accepted - savat tozalanadi, "Buyurtmalarim" ga yoziladi, Mini App yopiladi (tasdiq bot chatida);
+   *   rejected - Mini App ochiq qoladi, savat saqlanadi, sabab savat ustida (bot chatiga ham xabar boradi).
+   * Timeout (45 s - Render uyg'onishi) yoki tarmoq xatosi: avval /api/order-status tekshiriladi;
+   * faqat "unknown" bo'lsa qayta yuborishga ruxsat. Javob umuman bo'lmasa - qayta yuborish o'sha ref bilan
+   * (server (user_id, ref) bo'yicha takror buyurtma yaratmaydi).
+   */
+  const ORDER_POST_TIMEOUT_MS = 45 * 1000;
+
+  function serverOrderEnabled() {
+    return !!API_BASE && inTelegram && !!(tg && typeof tg.initData === 'string' && tg.initData);
+  }
+
+  /** Javob: {status, n, reason} (200) yoki { definitive: 'auth' | 'bad' } (qayta ishlanmagan) yoki null. */
+  async function postOrder(json) {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), ORDER_POST_TIMEOUT_MS) : null;
+    try {
+      const resp = await fetch(`${API_BASE}/api/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `tma ${tg.initData}` },
+        body: json,
+        cache: 'no-store',
+        credentials: 'omit',
+        mode: 'cors',
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      if (resp.status === 401) return { definitive: 'auth' };          // initData yaroqsiz - buyurtma yaratilmagan
+      if (resp.status === 400 || resp.status === 413) return { definitive: 'bad' };
+      if (!resp.ok) return null;                                        // 429 / 503 / 5xx - noma'lum
+      const data = await resp.json();
+      return data && (data.status === 'accepted' || data.status === 'rejected') ? data : null;
+    } catch (e) {
+      return null; // timeout / tarmoq - noma'lum
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function submitViaServer(localId, json) {
+    const co = state.checkout;
+    let data = await postOrder(json);
+    if (data === null) {
+      // Javob kelmadi: server buyurtmani olganmi? (avval tekshiramiz - takror buyurtma bo'lmasin)
+      try { data = await fetchOrderStatus(localId); } catch (e) { data = null; }
+    }
+    co.submitting = false;
+    const result = data && !data.definitive ? RESULT.statusToResult(localId, data) : null;
+    if (result && (result.kind === 'ok' || result.kind === 'cx')) {
+      // Qabul qilindi (yoki qabul qilinib, keyin bekor qilingan)
+      co.retryRef = '';
+      applyResultObject(result);
+      haptic('success');
+      setSubmitting(false);
+      try { tg.close(); } catch (e) { render(true); }
+      return;
+    }
+    if (result && result.kind === 'rej') {
+      co.retryRef = '';
+      applyResultObject(result);
+      state.lastRejection = { ref: localId, code: result.code };
+      haptic('error');
+      setSubmitting(false);
+      render(true); // savat ustida sabab
+      return;
+    }
+    if ((data && data.definitive) || (data && data.status === 'unknown')) {
+      // Server buyurtmani OLMAGAN - yozuv olib tashlanadi, yangi ref bilan qayta yuborish mumkin
+      co.retryRef = '';
+      removeOrder(localId);
+      setSubmitting(false);
+      toast(data.definitive === 'auth' ? T('toast.reopen') : T('toast.send_retry'), true);
+      haptic('error');
+      return;
+    }
+    // Umuman javob yo'q (tarmoq): yozuv "kutilmoqda" qoladi, qayta yuborish - O'SHA ref bilan
+    co.retryRef = localId;
+    setSubmitting(false);
+    toast(T('toast.send_unknown'), true);
+    startStatusPolling();
+  }
+
   // ---------------------------------------------------------------- yuborish
   function setSubmitting(value) {
     state.checkout.submitting = value;
@@ -1460,16 +1552,19 @@
       return;
     }
 
+    // Javobi noma'lum qolgan buyurtmani QAYTA yuborish - o'sha ref bilan (server takror buyurtma yaratmaydi)
+    const retryRef = co.retryRef && getOrders().some((o) => o.localId === co.retryRef && o.status === 'pending')
+      ? co.retryRef : '';
     // Bot 30 soniya ichidagi ikkinchi buyurtmani rad etadi - mijozni oldindan ogohlantiramiz
     const pending = lastPendingOrder();
     const sinceLast = pending ? msSince(pending.date) : Infinity;
-    if (sinceLast < ORDER_COOLDOWN_MS) {
+    if (!retryRef && sinceLast < ORDER_COOLDOWN_MS) {
       toast(T('toast.cooldown', { sec: Math.ceil((ORDER_COOLDOWN_MS - sinceLast) / 1000) }), true);
       return;
     }
     setSubmitting(true);
 
-    const localId = newOrderRef();
+    const localId = retryRef || newOrderRef();
     const useLocation = co.locStatus === 'ok' && !!co.loc;
     const lines = Array.from(state.cart).filter(([id]) => state.menu.byId.has(id));
     // Narx va jami summa YUBORILMAYDI - bot ularni menu.json dan hisoblaydi
@@ -1517,11 +1612,17 @@
       addressText: useLocation ? '' : v.addressText,
       status: 'pending',
     };
-    saveOrder(record);
+    if (!retryRef) saveOrder(record);
     // Forma qoralamasi: rad etilsa yoki javob kelmasa qayta ochilganda tiklanadi
     saveDraft(localId);
 
-    // 2) Botga yuborish (Telegram Mini App'ni yopadi)
+    // 2a) Inline/menyu tugmasidan ochilgan (initData bor) - bot serveriga HTTP (POST /api/orders)
+    if (serverOrderEnabled()) {
+      submitViaServer(localId, json);
+      return;
+    }
+
+    // 2b) ZAXIRA: eski pastki klaviatura tugmasidan ochilgan (initData bo'sh) - sendData (Mini App yopiladi)
     try {
       if (inTelegram) {
         tg.sendData(json);

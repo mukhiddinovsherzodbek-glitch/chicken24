@@ -12,6 +12,8 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+
+from aiogram.types import ReplyKeyboardRemove
 from urllib.parse import parse_qs, urlparse
 
 BOT_DIR = Path(__file__).resolve().parent.parent
@@ -48,12 +50,27 @@ class FakeBot:
     def __init__(self, fail_admin: bool = False) -> None:
         self.sent: list[tuple] = []
         self.fail_admin = fail_admin
+        self.kb_removed: list[int] = []      # ReplyKeyboardRemove yuborilgan chatlar
+        self.deleted: list[tuple] = []
+        self.menu_buttons: list[tuple] = []  # (chat_id, MenuButtonWebApp)
 
     async def send_message(self, chat_id, text, **kw):
         if self.fail_admin and chat_id == 999:
             raise RuntimeError("admin bloklagan (sinov)")
+        if isinstance(kw.get("reply_markup"), ReplyKeyboardRemove):
+            # pastki klaviaturani olib tashlash (darhol o'chiriladigan yordamchi xabar) - alohida yoziladi
+            self.kb_removed.append(chat_id)
+            return SimpleNamespace(message_id=9000 + len(self.kb_removed))
         self.sent.append(("message", chat_id, text, kw))
         return SimpleNamespace(message_id=1000 + len(self.sent))
+
+    async def delete_message(self, chat_id, message_id, **kw):
+        self.deleted.append((chat_id, message_id))
+        return True
+
+    async def set_chat_menu_button(self, chat_id=None, menu_button=None, **kw):
+        self.menu_buttons.append((chat_id, menu_button))
+        return True
 
     async def send_location(self, chat_id, latitude, longitude, **kw):
         if self.fail_admin and chat_id == 999:
@@ -83,9 +100,17 @@ def confirmation(answers):
     return answers[0]
 
 
+def order_button(markup):
+    """Xabar ostidagi inline "Buyurtma berish" (web_app) tugmasi."""
+    for row in reversed(markup.inline_keyboard):
+        for button in row:
+            if button.web_app is not None:
+                return button
+    raise AssertionError("inline web_app tugma yo'q")
+
+
 def button_query(markup) -> dict[str, list[str]]:
-    url = markup.keyboard[0][0].web_app.url
-    return parse_qs(urlparse(url).query)
+    return parse_qs(urlparse(order_button(markup).web_app.url).query)
 
 
 def good(**over):
@@ -409,7 +434,7 @@ def test_customer_cancels_within_window():
     assert cb.alerts[0][0] == "Buyurtma bekor qilindi" and "bekor qilindi" in cb.edits[0]
     # Mijozga: natijali havola ?cx=<ref> (Mini App tarixida "Bekor qilindi")
     customer = [s for s in sent if s[0] == "message" and s[1] == 20][-1]
-    assert parse_qs(urlparse(customer[3]["reply_markup"].keyboard[0][0].web_app.url).query) == {"lang": ["uz"], "cx": ["abc123xyz"]}
+    assert parse_qs(urlparse(order_button(customer[3]["reply_markup"]).web_app.url).query) == {"lang": ["uz"], "cx": ["abc123xyz"]}
     # Admin'ga: chekka javob sifatida
     admin_msgs = [s for s in sent if s[0] == "message" and s[1] == 999]
     assert "bekor qildi" in admin_msgs[-1][2]

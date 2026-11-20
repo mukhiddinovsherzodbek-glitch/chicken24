@@ -15,7 +15,7 @@ import re
 import sqlite3
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Iterable, Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -162,6 +162,14 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 
 # Migratsiyadan KEYIN yaratiladigan indekslar (eski bazada ustun keyin qo'shiladi)
 POST_MIGRATION_SQL = "CREATE INDEX IF NOT EXISTS idx_orders_ref ON orders(client_ref)"
+# Idempotentlik: bitta mijozning bitta ref'i bilan faqat bitta buyurtma (POST /api/orders takrorlansa ham).
+# Eski bazada takror bo'lsa indeks yaratilmaydi (bot yiqilmasin) - logga ogohlantirish; kod baribir tekshiradi.
+UNIQUE_REF_SQL = ("CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_user_ref ON orders(user_id, client_ref) "
+                  "WHERE client_ref IS NOT NULL")
+DUPLICATE_REFS_SQL = ("SELECT 1 FROM orders WHERE client_ref IS NOT NULL "
+                      "GROUP BY user_id, client_ref HAVING COUNT(*) > 1 LIMIT 1")
+DUPLICATE_REFS_WARNING = ("Bazada bir xil (user_id, client_ref) li buyurtmalar bor - unique indeks yaratilmadi "
+                          "(idempotentlik kod darajasida ishlayveradi)")
 
 # Eski bazalarga keyin qo'shilgan ustunlar (mavjud ma'lumot saqlanadi)
 MIGRATIONS = {
@@ -219,6 +227,21 @@ UNNOTIFIED_BATCH = 50
 
 POSTGRES = "postgres"
 SQLITE = "sqlite"
+
+
+_last_utc: datetime | None = None
+
+
+def utc_now() -> datetime:
+    """Qat'iy o'suvchi UTC vaqt (jarayon ichida). Windows soati bir necha millisekund bir xil qiymat qaytarishi
+    mumkin - buyurtma va rad etish vaqtlari teng chiqsa, qaysi biri keyin bo'lgani noma'lum bo'lib qoladi
+    (latest_result / order_status). Har chaqiruv avvalgisidan kamida 1 mikrosekund keyin."""
+    global _last_utc
+    now = datetime.now(timezone.utc)
+    if _last_utc is not None and now <= _last_utc:
+        now = _last_utc + timedelta(microseconds=1)
+    _last_utc = now
+    return now
 
 
 class DatabaseError(Exception):
@@ -531,6 +554,10 @@ class Database:
                         "UPDATE orders SET items_total = total, delivery_fee = 0 WHERE items_total IS NULL"
                     )
                     await con.execute(POST_MIGRATION_SQL)
+                    if await con.fetchval(DUPLICATE_REFS_SQL):
+                        logger.warning(DUPLICATE_REFS_WARNING)
+                    else:
+                        await con.execute(UNIQUE_REF_SQL)
         except Exception as exc:
             if self._pool is not None:
                 await self._pool.close()
@@ -557,6 +584,11 @@ class Database:
         if cursor.rowcount:
             logger.info("Eski %d ta buyurtmaga items_total/delivery_fee to'ldirildi", cursor.rowcount)
         await self.conn.execute(POST_MIGRATION_SQL)
+        cursor = await self.conn.execute(DUPLICATE_REFS_SQL)
+        if await cursor.fetchone():
+            logger.warning(DUPLICATE_REFS_WARNING)
+        else:
+            await self.conn.execute(UNIQUE_REF_SQL)
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -725,6 +757,7 @@ class Database:
         rej = await self._db.fetchone(
             "SELECT client_ref, reason, created_at FROM last_rejections WHERE user_id = ?", (user_id,)
         )
+        # Vaqtlar utc_now() dan - qat'iy o'suvchi, shuning uchun tenglik bo'lmaydi
         if rej is not None and (order is None or datetime.fromisoformat(rej[2]) > datetime.fromisoformat(order[3])):
             return {"kind": "rej", "ref": rej[0], "order_id": None, "reason": rej[1]}
         if order is not None:

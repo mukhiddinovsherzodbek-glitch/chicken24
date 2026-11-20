@@ -57,6 +57,8 @@ def setup_logging() -> None:
     root.setLevel(logging.INFO)
     root.addHandler(console)
     root.addHandler(file_handler)
+    # aiosqlite DEBUG darajasida SQL parametrlarini (telefon, manzil) yozadi - doim o'chiq
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
 
 async def every(seconds: float, job, name: str) -> None:
@@ -158,11 +160,13 @@ async def run(config: Config) -> None:
     )
     db = Database.from_config(config)
     bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    # 30 soniyalik buyurtma cheklovi - sendData (web_app_data) va POST /api/orders uchun UMUMIY
+    limiter = RateLimiter(ORDER_COOLDOWN_SECONDS)
     dp = Dispatcher(
         config=config,
         menu_store=menu_store,
         db=db,
-        limiter=RateLimiter(ORDER_COOLDOWN_SECONDS),
+        limiter=limiter,
     )
     dp.include_router(router)
 
@@ -175,8 +179,12 @@ async def run(config: Config) -> None:
             webhook.install_stop_signals(stop)
             ready = asyncio.Event()
             # Mini App buyurtma holatini shu serverdan so'raydi (CORS - faqat WEBAPP_URL origin'i)
-            api = orderapi.OrderStatusAPI(db=db, bot_token=config.bot_token,
-                                          allowed_origin=orderapi.origin_of(config.webapp_url), ready=ready)
+            api = [
+                orderapi.OrderStatusAPI(db=db, bot_token=config.bot_token,
+                                        allowed_origin=orderapi.origin_of(config.webapp_url), ready=ready),
+                orderapi.OrderSubmitAPI(bot=bot, config=config, menu_store=menu_store, db=db,
+                                        limiter=limiter, ready=ready),
+            ]
             runner = await webhook.start_server(dp, bot, secret=config.webhook_secret, port=config.port,
                                                 ready=ready, api=api)
             # 2) Baza va menyu - parallel (Neon uyg'onishi va Pages so'rovi bir-birini kutmaydi)

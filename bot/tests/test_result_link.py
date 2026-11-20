@@ -29,7 +29,7 @@ from handlers import (  # noqa: E402
     on_lang_chosen,
     on_web_app_data,
 )
-from test_flow import Env, FakeBot, good, make_message  # noqa: E402
+from test_flow import Env, FakeBot, good, make_message, order_button  # noqa: E402
 
 business.is_open_now = lambda: True
 
@@ -43,7 +43,7 @@ def q(url: str) -> dict:
 
 
 def kb_query(markup) -> dict:
-    return q(markup.keyboard[0][0].web_app.url)
+    return q(order_button(markup).web_app.url)
 
 
 class LangBot(FakeBot):
@@ -243,21 +243,33 @@ def test_rejection_older_than_order_is_ignored():
 
 # ------------------------------------------------------------ kodda URL faqat bitta joyda yig'iladi
 
-def test_url_built_only_in_build_webapp_url():
+def test_order_and_rejection_timestamps_strictly_increase():
+    """Windows soati bir necha ms bir xil qiymat berishi mumkin: buyurtma va rad etish vaqti hech qachon teng emas
+    (aks holda qaysi biri oxirgi ekanini aniqlab bo'lmaydi - natija havolasi noto'g'ri chiqardi)."""
+    from db import utc_now
+
+    stamps = [utc_now() for _ in range(5000)]
+    assert all(a < b for a, b in zip(stamps, stamps[1:]))
     src = (BOT_DIR / "handlers.py").read_text(encoding="utf-8")
-    assert src.count("WebAppInfo(") == 1, "WebAppInfo faqat main_keyboard ichida"
+    assert "created_at = utc_now()" in src and "record_rejection(user.id, ref, code, utc_now())" in src
+
+
+def test_url_built_only_in_build_webapp_url():
+    """Mini App havolasi bitta joyda: build_webapp_url -> webapp_info -> (inline tugma, menyu tugmasi)."""
+    src = (BOT_DIR / "handlers.py").read_text(encoding="utf-8")
+    assert src.count("WebAppInfo(") == 1, "WebAppInfo faqat webapp_info ichida"
     calls = [m.start() for m in re.finditer(r"webapp_url_with_result\(", src)]
-    # bittasi - ta'rif (def), bittasi - build_webapp_url ichida
-    assert len(calls) == 2
-    body = src[src.index("async def build_webapp_url"):src.index("async def main_keyboard")]
-    assert "webapp_url_with_result(" in body
-    assert src.count("await build_webapp_url(") == 1  # faqat main_keyboard ichida chaqiriladi
-    assert src.count("await main_keyboard(") == 5  # salomlashuv, /til, rad (hamma sabab), qabul, bekor qilish
-    assert "config.webapp_url" in body and src.count("config.webapp_url") == 1
+    assert len(calls) == 2  # ta'rif + build_webapp_url ichida
+    body = src[src.index("async def build_webapp_url"):src.index("async def webapp_info")]
+    assert "webapp_url_with_result(" in body and "config.webapp_url" in body
+    assert src.count("config.webapp_url") == 1
+    assert src.count("await build_webapp_url(") == 1  # faqat webapp_info ichida
+    assert src.count("await webapp_info(") == 2      # inline tugma (order_keyboard) va menyu tugmasi
+    assert "ReplyKeyboardMarkup" not in src and "KeyboardButton(" not in src.replace("InlineKeyboardButton(", "")
     for other in BOT_DIR.glob("*.py"):
         if other.name != "handlers.py":
             text = other.read_text(encoding="utf-8")
-            assert "WebAppInfo(" not in text and "main_keyboard" not in text, other.name
+            assert "WebAppInfo(" not in text and "build_webapp_url" not in text, other.name
 
 
 if __name__ == "__main__":

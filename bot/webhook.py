@@ -2,7 +2,7 @@
 
 - POST <sir yo'lak>  - Telegram yangilanishlari. X-Telegram-Bot-Api-Secret-Token sarlavhasi
   WEBHOOK_SECRET bilan solishtiriladi (mos kelmasa 401).
-- GET /api/order-status - Mini App uchun buyurtma holati (orderapi.py, initData bilan).
+- POST /api/orders, GET /api/order-status - Mini App API (orderapi.py).
 - GET/HEAD /health   - {"ok": true}. Bazaga murojaat qilmaydi (Render health check, keep-alive, UptimeRobot).
 
 Tez ishga tushish: server ENG BIRINCHI ochiladi (Render port'ni darhol ko'radi, /health darhol javob beradi),
@@ -66,8 +66,8 @@ def build_app(dp: Dispatcher, bot: Bot, secret: str, *, ready: asyncio.Event | N
               ready_timeout: float = READY_TIMEOUT_SECONDS, api: Any = None) -> web.Application:
     app = web.Application()
     app.router.add_get(HEALTH_PATH, health)  # aiohttp HEAD ni ham avtomatik qo'shadi
-    if api is not None:
-        api.register(app)  # Mini App: GET /api/order-status (orderapi.py)
+    for one in (api if isinstance(api, (list, tuple)) else [api] if api is not None else []):
+        one.register(app)  # Mini App: POST /api/orders, GET /api/order-status (orderapi.py)
     GatedRequestHandler(dispatcher=dp, bot=bot, secret_token=secret, ready=ready,
                         ready_timeout=ready_timeout).register(app, path=webhook_path(secret))
     setup_application(app, dp, bot=bot)

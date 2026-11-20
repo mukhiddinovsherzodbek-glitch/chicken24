@@ -475,3 +475,59 @@ soniyada (bot buyurtmani saqlagach) yozuv yo'qoladi, savat bo'shaydi, "Buyurtmal
 Mini App'ni yopmasdan boshqa ilovaga o'tib qaytsangiz ham darhol tekshiradi.
 Avvalgi versiyada qotib qolgan eski buyurtmalar ham shu yo'l bilan yechiladi: Mini App'ni oching — bot qabul qilgan
 bo'lsa savat bir necha soniyada tozalanadi; olmagan bo'lsa 10 daqiqadan keyin "Botga yetib bormadi" chiqadi.
+
+### E-12. "Buyurtma berish" — inline tugma va HTTP buyurtma (`POST /api/orders`)
+**Nima o'zgardi (mijoz ko'radigan):**
+- Pastdagi doimiy (reply) klaviatura **olib tashlandi**. "Buyurtma berish / Сделать заказ" endi xabar **ostidagi
+  inline tugma**: salomlashuv rasmi ostida, `/til` tasdig'i, buyurtma qabul qilindi / rad etildi / bekor qilindi
+  xabarlari ostida. "❌ Buyurtmani bekor qilish" tugmasi alohida xabarda qoladi (5 daqiqa).
+- Matn maydoni yonida **menyu tugmasi** — "Buyurtma" / "Заказ" (mijoz tilida, til tanlanganda va `/til` dan keyin
+  shu mijoz uchun yangilanadi).
+- **Eski mijozlar:** botga istalgan matn yozsa yoki eski pastki tugma orqali buyurtma bersa — bot pastki
+  klaviaturani olib tashlaydi, menyu tugmasini o'rnatadi va inline tugma yuboradi.
+
+**Nega HTTP:** inline/menyu tugmasidan ochilgan Mini App'da `sendData()` ishlamaydi, lekin Telegram **initData**
+beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://chicken24-bot.onrender.com/api/orders`.
+- Server initData imzosini tekshiradi (HMAC-SHA256, "WebAppData" + bot tokeni, constant-time, 24 soat).
+  **user_id faqat initData dan** — tanadagi user_id e'tiborsiz. initData bo'sh/noto'g'ri — `401`.
+- Mantiq `sendData` bilan **bir xil funksiya** (`handlers.process_order`): narxlar menu.json dan, ish vaqti,
+  Samarqand hududi, yetkazish, 30 soniyalik himoya, admin cheki, mijozga tasdiq + bekor qilish tugmasi.
+- **Takror yo'q:** bitta `(user_id, ref)` — bitta buyurtma (bazada unique indeks, SQLite va Postgres). Takror so'rov
+  avvalgi natijani qaytaradi va mijozga/admin'ga qayta xabar yubormaydi. (Eski bazada takror bo'lsa indeks
+  yaratilmaydi — logda ogohlantirish, bot ishlayveradi.)
+- Javob: `{"status": "accepted"|"rejected", "n": raqam, "reason": kod}` — shaxsiy ma'lumotsiz.
+- Cheklovlar: tana 20 KB, buyurtma ma'lumoti 4 KB, 30 tagacha taom, har biri 50 tagacha; foydalanuvchiga daqiqasiga
+  6 so'rov; noto'g'ri JSON — `400`. CORS: faqat `POST`/`OPTIONS`, faqat `https://chicken24.pages.dev`.
+
+**Mini App'da:**
+- Yuborish paytida tugma o'chiq ("Yuborilmoqda…"), kutish 45 soniyagacha (Render uyg'onishi uchun).
+- `accepted` — savat tozalanadi, "Buyurtmalarim" ga yoziladi, Mini App **yopiladi** (tasdiq bot chatida).
+- `rejected` — Mini App ochiq qoladi, savat saqlanadi, savat ustida qisqa sabab (bot chatiga ham xabar boradi).
+- Timeout / tarmoq xatosi — avval `/api/order-status` tekshiriladi: qabul qilingan bo'lsa yopiladi; `unknown`
+  bo'lsa "Buyurtma yuborilmadi" va qayta yuborish mumkin; javob umuman bo'lmasa "Javob kelmadi" — qayta yuborish
+  **o'sha ref bilan** (server ikkinchi buyurtma yaratmaydi).
+- **Zaxira:** initData bo'sh bo'lsa (eski pastki tugmadan ochilgan) — avvalgi `sendData` yo'li, `?ok=` havolasi va
+  holat so'rash ishlayveradi.
+
+**Telegram'da sinash:**
+1. `/start` → til → salomlashuv rasmi ostida "Buyurtma berish"; pastki klaviatura yo'qolgan; matn maydoni yonida "Buyurtma".
+2. Inline tugmadan buyurtma → Mini App yopiladi → bot chatida tasdiq + bekor qilish tugmasi; admin'ga chek.
+3. Hududdan tashqari lokatsiya (yoki ish vaqtidan tashqari) → Mini App ochiq, savat ustida sabab, chatda ham xabar.
+4. Menyu tugmasidan ham buyurtma bering. `/til` → menyu tugmasi matni tilga mos o'zgaradi.
+5. Eski chat (pastki tugma bor edi) → istalgan matn yozing → pastki tugma yo'qoladi, inline tugma keladi.
+
+**Xavflar:**
+- Menyu tugmasi har chat uchun alohida o'rnatiladi va bot eski versiyaga qaytarilsa ham **o'zi o'chmaydi**.
+- Render uxlab qolgan bo'lsa birinchi buyurtma 30-60 soniya "Yuborilmoqda…" da turishi mumkin (45 s kutish).
+  Javob kelmasa Mini App holatni tekshiradi — takror buyurtma bo'lmaydi.
+- `API_BASE` (`miniapp/config.js`) noto'g'ri bo'lsa inline tugmadan buyurtma ishlamaydi (menyu tugmasi ham).
+
+**Orqaga qaytish (rollback):**
+1. **Bot:** `git revert <commit>` → `git push` (Render avtomatik qayta joylaydi). Yoki Render → `chicken24-bot` →
+   **Events** → oldingi deploy → **Rollback**.
+2. **Mini App:** Cloudflare dashboard → Workers & Pages → `chicken24` → **Deployments** → oldingi deploy →
+   **⋯ → Rollback to this deployment** (yoki eski kod bilan `npx wrangler pages deploy ...`).
+3. Ikkalasini **birga** qaytaring: eski Mini App menyu/inline tugmadan ochilganda `sendData` bilan yubora olmaydi.
+4. Eski versiya `/start` da yana pastki klaviaturani yuboradi. Menyu tugmasini hammaga qaytarish uchun
+   @BotFather → Bot Settings → Menu Button, yoki shu mijozda `/start` (eski versiya menyu tugmasiga tegmaydi —
+   kerak bo'lsa alohida so'rang).

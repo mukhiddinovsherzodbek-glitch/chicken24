@@ -13,7 +13,7 @@ sys.path.insert(0, str(BOT_DIR))
 import handlers  # noqa: E402
 from aiogram.types import FSInputFile  # noqa: E402
 from config import WELCOME_IMAGE_PATH, WELCOME_IMAGE_RU_PATH, Config  # noqa: E402
-from handlers import WelcomePhoto, build_welcome_caption, main_keyboard, send_welcome  # noqa: E402
+from handlers import WelcomePhoto, build_welcome_caption, order_keyboard, send_welcome  # noqa: E402
 
 CONFIG = Config(bot_token="1:x", admin_id=999, webapp_url="https://example.pages.dev",
                 menu_path=Path("menu.json"), db_path=Path("t.db"))
@@ -50,7 +50,7 @@ def welcome(bot, lang="uz", name="Aziz"):
 
 
 def url_query(markup) -> dict:
-    return parse_qs(urlparse(markup.keyboard[0][0].web_app.url).query)
+    return parse_qs(urlparse(markup.inline_keyboard[-1][0].web_app.url).query)
 
 
 def test_welcome_images_exist():
@@ -63,7 +63,7 @@ def test_caption_content_and_escape():
     assert text.startswith("Assalomu alaykum, &lt;b&gt;Ali&lt;/b&gt;! 👋")
     for part in ("Chicken24 ga xush kelibsiz!", "🕙 Ish vaqti: 10:00 – 03:00",
                  "🚚 Yetkazish: 10 000 so'm (Samarqand shahri bo'ylab)", "💵 To'lov: naqd",
-                 "Buyurtma berish uchun pastdagi tugmani bosing 👇"):
+                 "Buyurtma berish uchun quyidagi tugmani bosing 👇"):
         assert part in text, part
     assert "yopiqmiz" not in text
     assert "🍗" not in text
@@ -93,9 +93,9 @@ def test_first_upload_then_file_id_reused():
     assert isinstance(first, FSInputFile) and Path(first.path) == WELCOME_IMAGE_PATH  # 1-marta fayldan
     assert second == "FILE_1"  # keyin eng katta o'lchamdagi file_id
     markup = bot.photos[0][2]
-    button = markup.keyboard[0][0]
+    button = markup.inline_keyboard[-1][0]
     assert button.text == "Buyurtma berish" and url_query(markup) == {"lang": ["uz"]}
-    assert markup.is_persistent and markup.resize_keyboard
+    assert len(markup.inline_keyboard) == 1, "rasm ostida bitta inline tugma"
 
 
 def test_russian_welcome_uses_ru_image_and_keyboard():
@@ -105,8 +105,7 @@ def test_russian_welcome_uses_ru_image_and_keyboard():
     photo, caption, markup = bot.photos[0]
     assert Path(photo.path) == WELCOME_IMAGE_RU_PATH
     assert caption.startswith("Здравствуйте")
-    assert markup.keyboard[0][0].text == "Сделать заказ" and url_query(markup) == {"lang": ["ru"]}
-    assert markup.input_field_placeholder == "Нажмите кнопку, чтобы сделать заказ"
+    assert markup.inline_keyboard[-1][0].text == "Сделать заказ" and url_query(markup) == {"lang": ["ru"]}
 
 
 def test_russian_image_missing_falls_back_to_uz_image():
@@ -135,7 +134,7 @@ def test_missing_file_falls_back_to_text():
     welcome(bot)
     handlers.WELCOME_IMAGE_PATH = WELCOME_IMAGE_PATH
     assert not bot.photos and bot.texts and bot.texts[0][0].startswith("Assalomu alaykum")
-    assert bot.texts[0][1].keyboard[0][0].text == "Buyurtma berish"
+    assert bot.texts[0][1].inline_keyboard[-1][0].text == "Buyurtma berish"
 
 
 class ResultDB:
@@ -148,19 +147,33 @@ class ResultDB:
         return self.result
 
 
-def test_keyboard_compact_single_persistent_button():
+def test_inline_order_button_single_and_keeps_result():
     db = ResultDB({"kind": "ok", "ref": "abc123", "order_id": 5, "reason": None})
-    markup = asyncio.run(main_keyboard(CONFIG, db, 1, "uz"))
-    assert len(markup.keyboard) == 1 and len(markup.keyboard[0]) == 1
-    button = markup.keyboard[0][0]
-    assert button.text == "Buyurtma berish"
-    # til + natijali havola (ok/n) birga
+    markup = asyncio.run(order_keyboard(CONFIG, db, 1, "uz"))
+    assert len(markup.inline_keyboard) == 1 and len(markup.inline_keyboard[0]) == 1
+    button = markup.inline_keyboard[0][0]
+    assert button.text == "Buyurtma berish" and button.callback_data is None
+    # til + natijali havola (ok/n) birga - sendData zaxira yo'li uchun
     assert button.web_app.url == "https://example.pages.dev?lang=uz&ok=abc123&n=5"
-    assert markup.resize_keyboard is True and markup.is_persistent is True
-    assert markup.input_field_placeholder == "Buyurtma berish uchun tugmani bosing"
-    ru = asyncio.run(main_keyboard(CONFIG, ResultDB({"kind": "rej", "ref": "abc123", "order_id": None,
-                                                     "reason": "limit"}), 1, "ru"))
-    assert ru.keyboard[0][0].web_app.url == "https://example.pages.dev?lang=ru&rej=abc123&r=limit"
+    ru = asyncio.run(order_keyboard(CONFIG, ResultDB({"kind": "rej", "ref": "abc123", "order_id": None,
+                                                       "reason": "limit"}), 1, "ru"))
+    assert ru.inline_keyboard[0][0].web_app.url == "https://example.pages.dev?lang=ru&rej=abc123&r=limit"
+
+
+def test_long_caption_photo_and_text_sent_separately():
+    """Izoh 1024 belgidan oshsa: rasm izohsiz, matn va tugma alohida xabarda."""
+    reset()
+    original = handlers.build_welcome_caption
+    handlers.build_welcome_caption = lambda *a, **kw: "Salom " + "x" * 1100
+    try:
+        bot = FakeBot()
+        welcome(bot)
+    finally:
+        handlers.build_welcome_caption = original
+    photo, caption, markup = bot.photos[0]
+    assert caption is None and markup is None
+    text, kb = bot.texts[0]
+    assert len(text) > 1024 and kb.inline_keyboard[-1][0].text == "Buyurtma berish"
 
 
 def test_welcome_keyboard_keeps_last_result():
