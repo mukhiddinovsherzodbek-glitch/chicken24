@@ -13,6 +13,7 @@ import asyncio
 import logging
 import sys
 import time
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
 from aiogram import Bot, Dispatcher
@@ -34,6 +35,7 @@ from config import (
     ConfigError,
     load_config,
 )
+import selfping
 import webhook
 from db import Database
 from handlers import RateLimiter, resend_if_needed, resend_unnotified, router
@@ -80,20 +82,80 @@ async def remove_webhook_for_polling(bot: Bot) -> None:
         await bot.delete_webhook(drop_pending_updates=False)
 
 
-async def run(config: Config) -> None:
-    # Menyu: Pages (WEBAPP_URL/menu.json) asosiy, lokal menu.json - zaxira
-    menu_store = MenuProvider(
-        MenuStore(config.menu_path), config.menu_url, max_age=REMOTE_MENU_MAX_AGE_SECONDS
-    )
-    await menu_store.refresh()
+STARTUP_MENU_TIMEOUT_SECONDS = 5.0  # webhook rejimida Pages menyusini ishga tushishda shuncha kutamiz
+
+
+async def load_menu(menu_store: MenuProvider, config: Config, *, timeout: float | None) -> None:
+    """Pages menyusini oladi (timeout bilan - sekin tarmoq ishga tushishni ushlamasin), so'ng tekshiradi."""
+    try:
+        if timeout is None:
+            await menu_store.refresh()
+        else:
+            await asyncio.wait_for(menu_store.refresh(), timeout)
+    except asyncio.TimeoutError:
+        logger.warning("Pages menyusi %.0f soniyada olinmadi - lokal menu.json, keyin fonda yangilanadi", timeout)
     menu = menu_store.get()  # ikkalasi ham bo'lmasa MenuError - darhol aniq xato
     logger.info("Narxlar manbai: %s", "Pages" if menu_store.source == "pages" else f"lokal ({config.menu_path})")
     if not menu.items:
         logger.warning("Menyuda birorta taom yo'q - Mini App'da barcha kategoriyalar 'Tez orada' bo'ladi")
 
-    db = Database.from_config(config)
-    await db.connect()
 
+async def startup_jobs(bot: Bot, config: Config, db: Database, started_at: datetime) -> None:
+    """Telegram'ga bog'liq boshlang'ich ishlar. Webhook rejimida fonda (javob berishni sekinlashtirmaydi)."""
+    me = await bot.get_me()
+    logger.info("Bot: @%s (admin_id=%s)", me.username, config.admin_id)
+    # "/" menyusi: mijozlarga faqat /start, admin'ga to'liq ro'yxat (xato bo'lsa ham bot to'xtamaydi)
+    await commands.apply_commands(bot, config.admin_id)
+    # Ishga tushishdan OLDINGI, admin'ga yetmagan buyurtmalar (keyingilarini handler o'zi yuboradi - poyga yo'q)
+    await resend_unnotified(bot, config, db, before=started_at)
+    # Zaxira: o'tkazib yuborilgan bo'lsa darhol
+    if BACKUP_ENABLED:
+        try:
+            await backup.startup_backup_if_due(bot, config, db)
+        except Exception:
+            logger.exception("Ishga tushishdagi zaxirada xato")
+
+
+async def guarded(coro, name: str) -> None:
+    """Fon vazifasi xatosi botni to'xtatmasin."""
+    try:
+        await coro
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Fon vazifasida xato: %s", name)
+
+
+def background_tasks(bot: Bot, config: Config, db: Database, menu_store: MenuProvider) -> list[asyncio.Task]:
+    tasks = [asyncio.create_task(every(
+        RESEND_INTERVAL_SECONDS,
+        # Bazaga faqat yangi buyurtma yoki yuborish xatosidan keyin murojaat qilinadi (bo'sh so'rov yo'q)
+        lambda: resend_if_needed(bot, config, db, min_age_seconds=RESEND_MIN_AGE_SECONDS),
+        "qayta yuborish",
+    ))]
+    if config.menu_url:
+        tasks.append(asyncio.create_task(every(MENU_REFRESH_SECONDS, menu_store.refresh, "menyu yangilash")))
+    if BACKUP_ENABLED:
+        tasks.append(asyncio.create_task(backup.backup_loop(bot, config, db)))
+    if config.self_ping_url:
+        tasks.append(asyncio.create_task(selfping.self_ping_loop(config.self_ping_url)))
+    return tasks
+
+
+def startup_summary(config: Config, db: Database) -> str:
+    """Bitta qator: rejim, baza turi, self-ping. Manzil, parol va token yo'q."""
+    ping = f"yoqilgan (har {selfping.SELF_PING_SECONDS // 60} daqiqa)" if config.self_ping_url else "o'chiq"
+    return (f"Ishga tushdi: rejim={'webhook' if config.use_webhook else 'polling'}, "
+            f"baza={db.kind}, self-ping={ping}")
+
+
+async def run(config: Config) -> None:
+    started_at = datetime.now(timezone.utc)
+    # Menyu: Pages (WEBAPP_URL/menu.json) asosiy, lokal menu.json - zaxira
+    menu_store = MenuProvider(
+        MenuStore(config.menu_path), config.menu_url, max_age=REMOTE_MENU_MAX_AGE_SECONDS
+    )
+    db = Database.from_config(config)
     bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(
         config=config,
@@ -104,35 +166,34 @@ async def run(config: Config) -> None:
     dp.include_router(router)
 
     tasks: list[asyncio.Task] = []
+    runner = None
     try:
-        me = await bot.get_me()
-        logger.info("Bot ishga tushdi: @%s (admin_id=%s)", me.username, config.admin_id)
-        # "/" menyusi: mijozlarga faqat /start, admin'ga to'liq ro'yxat (xato bo'lsa ham bot to'xtamaydi)
-        await commands.apply_commands(bot, config.admin_id)
-        # Oldin admin'ga yetmagan buyurtmalar: avval ishga tushganda (polling'dan oldin, poyga yo'q),
-        # keyin har 2 daqiqada (yangi buyurtmalarga 60 soniya tegmasdan)
-        await resend_unnotified(bot, config, db, min_age_seconds=0)
-        # Bazaga faqat yangi buyurtma yoki yuborish xatosidan keyin murojaat qilinadi (bo'sh so'rov yo'q)
-        tasks.append(asyncio.create_task(every(
-            RESEND_INTERVAL_SECONDS,
-            lambda: resend_if_needed(bot, config, db, min_age_seconds=RESEND_MIN_AGE_SECONDS),
-            "qayta yuborish",
-        )))
-        if config.menu_url:
-            tasks.append(asyncio.create_task(every(MENU_REFRESH_SECONDS, menu_store.refresh, "menyu yangilash")))
-        # Zaxira: o'tkazib yuborilgan bo'lsa darhol, keyin har kuni BACKUP_TIME da
-        if BACKUP_ENABLED:
-            try:
-                await backup.startup_backup_if_due(bot, config, db)
-            except Exception:
-                logger.exception("Ishga tushishdagi zaxirada xato")
-            tasks.append(asyncio.create_task(backup.backup_loop(bot, config, db)))
         if config.use_webhook:
-            logger.info("Rejim: webhook (port %s)", config.port)
-            await webhook.serve(dp, bot, base_url=config.webhook_url, secret=config.webhook_secret,
-                                port=config.port)
+            # 1) HTTP server ENG BIRINCHI: Render port'ni darhol ko'radi, /health darhol javob beradi
+            stop = asyncio.Event()
+            webhook.install_stop_signals(stop)
+            ready = asyncio.Event()
+            runner = await webhook.start_server(dp, bot, secret=config.webhook_secret, port=config.port, ready=ready)
+            # 2) Baza va menyu - parallel (Neon uyg'onishi va Pages so'rovi bir-birini kutmaydi)
+            await asyncio.gather(
+                db.connect(),
+                load_menu(menu_store, config, timeout=STARTUP_MENU_TIMEOUT_SECONDS),
+            )
+            ready.set()  # shu paytdan Telegram yangilanishlari qayta ishlanadi
+            # 3) setWebhook - har ishga tushishda (idempotent, kutib turgan xabarlar saqlanadi)
+            await webhook.set_webhook(dp, bot, base_url=config.webhook_url, secret=config.webhook_secret)
+            # 4) Qolgani fonda
+            tasks.append(asyncio.create_task(guarded(startup_jobs(bot, config, db, started_at), "boshlang'ich ishlar")))
+            tasks += background_tasks(bot, config, db, menu_store)
+            logger.info(startup_summary(config, db))
+            await stop.wait()
+            logger.info("To'xtash signali olindi")
         else:
-            logger.info("Rejim: polling")
+            await load_menu(menu_store, config, timeout=None)
+            await db.connect()
+            await startup_jobs(bot, config, db, started_at)
+            tasks += background_tasks(bot, config, db, menu_store)
+            logger.info(startup_summary(config, db))
             await remove_webhook_for_polling(bot)
             # Polling tarmoq xatolarida o'zi qayta ulanadi; handler xatolari router.errors() da ushlanadi
             await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
@@ -140,9 +201,20 @@ async def run(config: Config) -> None:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if runner is not None:
+            await runner.cleanup()
         await db.close()
         await bot.session.close()
+        detach_router(dp)
         logger.info("Bot to'xtadi")
+
+
+def detach_router(dp: Dispatcher) -> None:
+    """Xatodan keyin run() qayta chaqirilganda router yangi Dispatcher'ga ulana olsin
+    (aiogram bitta routerni ikkinchi marta ulashga ruxsat bermaydi: 'Router is already attached')."""
+    if router in dp.sub_routers:
+        dp.sub_routers.remove(router)
+    router._parent_router = None  # aiogram'da ajratish uchun ochiq usul yo'q
 
 
 # Kutilmagan xatoda (masalan, ishga tushishda internet yo'q) jarayon yiqilmaydi,

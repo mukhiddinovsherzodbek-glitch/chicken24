@@ -335,8 +335,16 @@ Sirni almashtirish: yangi sir yarating → Render Environment'da `WEBHOOK_SECRET
 1. GitHub repo → **Settings → Secrets and variables → Actions → Variables → New repository variable**:
    - Name: `RENDER_HEALTH_URL`
    - Value: `https://chicken24-bot.onrender.com/health`
-2. **Actions** → `keep-alive` → **Run workflow** — yashil belgi chiqsa ishlayapti. Keyin u har ~10 daqiqada o'zi ishlaydi.
-   (Manzil kodda yozilmagan — faqat shu o'zgaruvchida. O'zgaruvchi bo'lmasa workflow ogohlantirish bilan o'tadi.)
+2. **Actions** → `keep-alive` → **Run workflow** — yashil belgi chiqsa ishlayapti. Jadval: har 5 daqiqa
+   (GitHub buni kechiktiradi — pastdagi E-10 ga qarang). Manzil kodda yozilmagan — faqat shu o'zgaruvchida.
+   O'zgaruvchi bo'lmasa yoki 3 urinishda ham javob kelmasa, workflow **qizil** bo'ladi.
+
+Uxlamaslikning uch qatlami (hammasi bir vaqtda ishlaydi):
+1. **Botning o'zi (asosiy)** — har 8 daqiqada o'zining ochiq manziliga `/health` so'rov yuboradi (`selfping.py`).
+   Render manzilni `RENDER_EXTERNAL_URL` orqali o'zi beradi — hech narsa sozlash shart emas. Logda:
+   `Ishga tushdi: rejim=webhook, baza=postgres, self-ping=yoqilgan (har 8 daqiqa)`.
+2. **UptimeRobot (tavsiya)** — tashqi monitor, har 5 daqiqa (E-10). Bot uxlab qolsa ham uni uyg'otadi.
+3. **GitHub Actions** — qo'shimcha zaxira.
 
 ### E-7. Kodni yangilash
 `git add .` → `git status` (yana `.env`/`.db` yo'qligini tekshiring) → `git commit -m "..."` → `git push`.
@@ -358,7 +366,8 @@ Render avtomatik qayta deploy qiladi. Baza Neon'da — buyurtmalar yo'qolmaydi.
 - **Render 750 soat/oy — butun akkaunt (workspace) uchun umumiy.** Bitta xizmat 24/7 ≈ 720-744 soat.
   Agar shu akkauntda **boshqa bot ham uxlamasdan** ishlasa, ikkalasi limitdan oshadi va Render oy oxirigacha
   **hamma bepul xizmatlarni to'xtatadi**. Chicken24 uchun alohida Render akkaunti yoki boshqa botni uxlatish kerak.
-- **GitHub cron aniq emas:** ishga tushish 10-30 daqiqa kechikishi mumkin — shunda Render baribir uxlab qoladi.
+- **GitHub cron ishonchsiz:** tekshiruvda `*/10` jadvali 40 soatda atigi **6 marta** (6-9 soat oraliq bilan) ishlagan —
+  shu sabab bot uxlab qolgan. Shuning uchun asosiy himoya endi botning o'zida (self-ping) va UptimeRobot'da (E-10).
   Uxlagan bot birinchi xabarda ~1 daqiqada uyg'onadi (Telegram webhook'ni qayta yuboradi, xabar yo'qolmaydi),
   lekin uxlab yotganda fon ishlari (kunlik zaxira 04:00, yetmagan cheklarni qayta yuborish) bajarilmaydi.
   Repo **60 kun** o'zgarmasa, GitHub jadvalli workflow'ni o'chiradi — Actions'da qayta yoqing.
@@ -379,3 +388,35 @@ Render avtomatik qayta deploy qiladi. Baza Neon'da — buyurtmalar yo'qolmaydi.
 - **Sir oshkor bo'lsa** (`WEBHOOK_SECRET`) — kimdir botga soxta xabar yuborishi mumkin: sirni darhol almashtiring (E-4).
   **`DATABASE_URL` oshkor bo'lsa** — Neon'da parolni yangilang (Roles → Reset password) va Render'da almashtiring.
 - Loglarda mijoz telefoni `+998 ** *** ** 67` ko'rinishida, token `<BOT_TOKEN>`, baza paroli `***` bo'lib chiqadi.
+
+### E-10. Bot uxlab qolsa nima qilish
+**Belgisi:** `/start` ga javob ~1 daqiqa kechikib keladi. Render bepul xizmati **15 daqiqa kiruvchi so'rov**
+bo'lmasa uxlaydi; birinchi so'rovda ~1 daqiqada uyg'onadi (Telegram xabarni qayta yuboradi — yo'qolmaydi).
+Uxlab yotganda fon ishlari (04:00 zaxira, yetmagan cheklarni qayta yuborish) bajarilmaydi.
+
+**1. UptimeRobot monitor qo'shing (bepul, 5 daqiqada 1 marta) — eng ishonchli tashqi himoya:**
+1. https://uptimerobot.com → **Register for FREE** (email bilan).
+2. **+ New monitor** → **Monitor Type:** `HTTP(s)`.
+3. **URL:** `https://chicken24-bot.onrender.com/health` · **Monitoring interval:** `5 minutes`.
+4. **Alert contacts:** emailingiz (bot ishlamay qolsa xat keladi) → **Create monitor**.
+5. Bir necha daqiqadan keyin monitor yashil **Up** bo'lishi kerak. UptimeRobot `HEAD` so'rov ishlatsa ham `/health` 200 qaytaradi.
+
+**2. Render Logs'da nimaga qarash** (Render → `chicken24-bot` → **Logs**):
+| Log qatori | Ma'nosi |
+|---|---|
+| `Ishga tushdi: rejim=webhook, baza=postgres, self-ping=yoqilgan (har 8 daqiqa)` | Hammasi to'g'ri sozlangan |
+| `self-ping=o'chiq` | `RENDER_EXTERNAL_URL` topilmadi — Environment'ga `PUBLIC_URL=https://chicken24-bot.onrender.com` qo'shing |
+| `Self-ping muvaffaqiyatsiz (...), ketma-ket N-marta` | Bir-ikki marta — tarmoq; ko'p marta takrorlansa UptimeRobot'ga tayaning |
+| `==> Detected service running on port ...` / `Your service is live` | Xizmat (qayta) ishga tushdi |
+| Uzoq vaqt hech qanday yangi qator yo'q, keyin ishga tushish qatorlari | Xizmat uxlagan va uyg'ongan |
+| `Bot hali tayyor emas - ... (503)` | Ishga tushishda baza (Neon) sekin uyg'ondi; Telegram xabarni keyin qayta yuboradi |
+
+**3. 750 soat limiti:** Render bepul soatlari butun akkaunt (workspace) uchun **oyiga 750 soat**. Uxlamaydigan
+bitta xizmat ≈ 720-744 soat sarflaydi — ya'ni shu akkauntda **boshqa uxlamaydigan bepul xizmat bo'lmasligi** kerak
+(`sertifikat-backend` kabi ishlatilmaydiganlarini **Suspend** qiling; statik saytlar soat sarflamaydi).
+Sarfni ko'rish: Render → workspace **Billing** (Free instance hours). Limit tugasa Render oy oxirigacha
+hamma bepul xizmatlarni to'xtatadi.
+
+**4. Qo'lda uyg'otish:** brauzerda `https://chicken24-bot.onrender.com/health` ni oching — 1 daqiqagacha kuting,
+`{"ok": true}` chiqsa bot uyg'ondi. Yoki GitHub → Actions → `keep-alive` → **Run workflow**.
+Bot umuman javob bermasa: Render → `chicken24-bot` → **Manual Deploy → Restart service** (yoki **Deploy latest commit**).

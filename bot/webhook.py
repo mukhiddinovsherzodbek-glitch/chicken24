@@ -2,7 +2,11 @@
 
 - POST <sir yo'lak>  - Telegram yangilanishlari. X-Telegram-Bot-Api-Secret-Token sarlavhasi
   WEBHOOK_SECRET bilan solishtiriladi (mos kelmasa 401).
-- GET  /health       - {"ok": true}. Bazaga murojaat qilmaydi (Render health check va keep-alive uchun).
+- GET/HEAD /health   - {"ok": true}. Bazaga murojaat qilmaydi (Render health check, keep-alive, UptimeRobot).
+
+Tez ishga tushish: server ENG BIRINCHI ochiladi (Render port'ni darhol ko'radi, /health darhol javob beradi),
+baza va menyu keyin tayyorlanadi. Shu orada kelgan Telegram yangilanishi `ready` hodisasini kutadi
+(uzog'i bilan READY_TIMEOUT_SECONDS; o'tib ketsa 503 - Telegram keyinroq qayta yuboradi, xabar yo'qolmaydi).
 
 Yo'lak WEBHOOK_SECRET dan hisoblanadi (sha256): tasodifiy ko'rinadi, qayta ishga tushganda o'zgarmaydi,
 sirning o'zi esa manzilda ham, loglarda ham ko'rinmaydi.
@@ -22,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 HEALTH_PATH = "/health"
 WEBHOOK_PREFIX = "/tg/"
+READY_TIMEOUT_SECONDS = 50.0  # Telegram webhook so'rovini ~60 soniya kutadi
 
 
 def webhook_path(secret: str) -> str:
@@ -33,10 +38,34 @@ async def health(_request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-def build_app(dp: Dispatcher, bot: Bot, secret: str) -> web.Application:
+class GatedRequestHandler(SimpleRequestHandler):
+    """Sir tekshiruvidan keyin bot tayyor bo'lishini (baza ulangan) kutadi, so'ng aiogram'ga uzatadi."""
+
+    def __init__(self, *args, ready: asyncio.Event | None = None,
+                 ready_timeout: float = READY_TIMEOUT_SECONDS, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._ready = ready
+        self._ready_timeout = ready_timeout
+
+    async def handle(self, request: web.Request) -> web.Response:
+        bot = await self.resolve_bot(request)
+        if not self.verify_secret(request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), bot):
+            return web.Response(body="Unauthorized", status=401)
+        if self._ready is not None and not self._ready.is_set():
+            try:
+                await asyncio.wait_for(self._ready.wait(), self._ready_timeout)
+            except asyncio.TimeoutError:
+                logger.warning("Bot hali tayyor emas - Telegram yangilanishi keyinroq qayta yuboriladi (503)")
+                return web.Response(status=503)
+        return await super().handle(request)
+
+
+def build_app(dp: Dispatcher, bot: Bot, secret: str, *, ready: asyncio.Event | None = None,
+              ready_timeout: float = READY_TIMEOUT_SECONDS) -> web.Application:
     app = web.Application()
-    app.router.add_get(HEALTH_PATH, health)
-    SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=secret).register(app, path=webhook_path(secret))
+    app.router.add_get(HEALTH_PATH, health)  # aiohttp HEAD ni ham avtomatik qo'shadi
+    GatedRequestHandler(dispatcher=dp, bot=bot, secret_token=secret, ready=ready,
+                        ready_timeout=ready_timeout).register(app, path=webhook_path(secret))
     setup_application(app, dp, bot=bot)
     return app
 
@@ -51,23 +80,39 @@ def install_stop_signals(stop: asyncio.Event) -> None:
             pass
 
 
-async def serve(dp: Dispatcher, bot: Bot, *, base_url: str, secret: str, port: int,
-                host: str = "0.0.0.0", stop: asyncio.Event | None = None) -> None:
-    """HTTP serverni ishga tushiradi, Telegram'ga webhook manzilini o'rnatadi va `stop` gacha ishlaydi."""
-    stop = stop or asyncio.Event()
-    install_stop_signals(stop)
-    runner = web.AppRunner(build_app(dp, bot, secret), access_log=None)  # access log'da sir yo'lak bo'lmasin
+async def start_server(dp: Dispatcher, bot: Bot, *, secret: str, port: int, host: str = "0.0.0.0",
+                       ready: asyncio.Event | None = None) -> web.AppRunner:
+    """HTTP serverni ochadi va darhol qaytadi (to'xtatish: `await runner.cleanup()`)."""
+    runner = web.AppRunner(build_app(dp, bot, secret, ready=ready), access_log=None)  # access log'da sir yo'lak bo'lmasin
     await runner.setup()
     try:
         await web.TCPSite(runner, host, port).start()
-        logger.info("HTTP server ishga tushdi: port %s (%s, webhook %s...)", port, HEALTH_PATH, WEBHOOK_PREFIX)
-        await bot.set_webhook(
-            base_url.rstrip("/") + webhook_path(secret),
-            secret_token=secret,
-            allowed_updates=dp.resolve_used_update_types(),
-            drop_pending_updates=False,
-        )
-        logger.info("Webhook o'rnatildi: %s%s...", base_url.rstrip("/"), WEBHOOK_PREFIX)
+    except Exception:
+        await runner.cleanup()
+        raise
+    logger.info("HTTP server ochildi: port %s (%s, webhook %s...)", port, HEALTH_PATH, WEBHOOK_PREFIX)
+    return runner
+
+
+async def set_webhook(dp: Dispatcher, bot: Bot, *, base_url: str, secret: str) -> None:
+    """Har ishga tushishda chaqiriladi (idempotent): manzil + sir; kutib turgan xabarlar o'chirilmaydi."""
+    await bot.set_webhook(
+        base_url.rstrip("/") + webhook_path(secret),
+        secret_token=secret,
+        allowed_updates=dp.resolve_used_update_types(),
+        drop_pending_updates=False,
+    )
+    logger.info("Webhook o'rnatildi (%s...)", WEBHOOK_PREFIX)
+
+
+async def serve(dp: Dispatcher, bot: Bot, *, base_url: str, secret: str, port: int,
+                host: str = "0.0.0.0", stop: asyncio.Event | None = None) -> None:
+    """Server + setWebhook, `stop` gacha ishlaydi (bot allaqachon tayyor bo'lganda ishlatiladi)."""
+    stop = stop or asyncio.Event()
+    install_stop_signals(stop)
+    runner = await start_server(dp, bot, secret=secret, port=port, host=host)
+    try:
+        await set_webhook(dp, bot, base_url=base_url, secret=secret)
         await stop.wait()
         logger.info("To'xtash signali olindi")
     finally:

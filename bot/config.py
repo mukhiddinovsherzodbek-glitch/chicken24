@@ -117,6 +117,8 @@ class Config:
     webhook_secret: str | None = field(default=None, repr=False)
     # Webhook HTTP serveri porti (Render PORT o'zgaruvchisini o'zi beradi)
     port: int = DEFAULT_PORT
+    # O'z-o'ziga ping manzili (<ochiq manzil>/health). None - o'chiq (lokal kompyuter)
+    self_ping_url: str | None = field(default=None, repr=False)
 
     @property
     def use_webhook(self) -> bool:
@@ -196,7 +198,21 @@ def load_config() -> Config:
         webhook_url=webhook_url,
         webhook_secret=webhook_secret,
         port=_port(),
+        self_ping_url=_self_ping_url(),
     )
+
+
+def _self_ping_url() -> str | None:
+    """PUBLIC_URL (qo'lda) yoki RENDER_EXTERNAL_URL (Render o'zi beradi) + /health. Ikkalasi yo'q - None."""
+    explicit = os.getenv("PUBLIC_URL", "").strip()
+    value = explicit or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    if not value:
+        return None
+    if not value.lower().startswith(("https://", "http://")) or "?" in value or "#" in value:
+        if explicit:
+            raise ConfigError("PUBLIC_URL sayt manzili bo'lsin (https://..., ? va # siz).")
+        return None  # Render qiymati kutilmagan ko'rinishda - ping o'chiq, bot ishlayveradi
+    return value.rstrip("/") + "/health"
 
 
 def _database_url() -> str | None:

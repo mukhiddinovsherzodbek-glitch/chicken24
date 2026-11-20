@@ -62,7 +62,7 @@ def run(coro):
 def env(**values):
     """Muhit o'zgaruvchilarini vaqtincha o'rnatadi; bot/.env o'qilmaydi (load_dotenv o'chirilgan)."""
     keys = ("BOT_TOKEN", "ADMIN_ID", "WEBAPP_URL", "DATABASE_URL", "WEBHOOK_URL", "WEBHOOK_SECRET", "PORT",
-            "MENU_URL", "MENU_PATH", "DB_PATH")
+            "MENU_URL", "MENU_PATH", "DB_PATH", "PUBLIC_URL", "RENDER_EXTERNAL_URL")
     saved = {k: os.environ.get(k) for k in keys}
     original_dotenv = config_module.load_dotenv
     config_module.load_dotenv = lambda *a, **kw: False
@@ -543,7 +543,10 @@ def test_render_yaml():
 
 def test_keep_alive_workflow():
     text = read(".github/workflows/keep-alive.yml")
-    assert 'cron: "*/10 * * * *"' in text and "vars.RENDER_HEALTH_URL" in text and "curl" in text
+    assert 'cron: "*/5 * * * *"' in text and "workflow_dispatch:" in text and "vars.RENDER_HEALTH_URL" in text
+    for flag in ("--fail", "--retry 3", "--retry-all-errors", "--max-time 60"):
+        assert flag in text, flag
+    assert "exit 1" in text, "manzil berilmasa ham workflow qizil bo'lsin"
     assert "onrender.com/" not in text.split("jobs:", 1)[1], "manzil qattiq yozilmasin"
     assert "permissions: {}" in text
 

@@ -828,7 +828,8 @@ async def deliver_receipt(bot: Bot, config: Config, db: Database, data: ReceiptD
     return True
 
 
-async def resend_unnotified(bot: Bot, config: Config, db: Database, min_age_seconds: float = 0) -> int:
+async def resend_unnotified(bot: Bot, config: Config, db: Database, min_age_seconds: float = 0,
+                            before: datetime | None = None) -> int:
     """notified=0 buyurtmalarni admin'ga qayta yuboradi. Yuborilganlar soni qaytadi.
 
     - Bir vaqtda faqat bitta qayta yuborish ishlaydi (lock) - dublikat bo'lmaydi.
@@ -838,7 +839,9 @@ async def resend_unnotified(bot: Bot, config: Config, db: Database, min_age_seco
       yoki yuborish xatosi bo'lmaguncha bazaga murojaat qilmaydi (resend_if_needed).
     """
     async with db.resend_lock:
-        before = datetime.now(timezone.utc) - timedelta(seconds=min_age_seconds)
+        # before berilsa (ishga tushish payti) - faqat undan oldingi buyurtmalar; yangilarini handler yuboradi
+        if before is None:
+            before = datetime.now(timezone.utc) - timedelta(seconds=min_age_seconds)
         pending = await db.get_unnotified(before)
         sent = 0
         for row, items in pending:

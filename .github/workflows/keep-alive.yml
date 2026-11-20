@@ -1,12 +1,14 @@
-# Render bepul rejasida xizmat 15 daqiqa so'rovsiz qolsa uxlaydi. Bu workflow har 10 daqiqada /health ga
-# so'rov yuboradi. Manzil koddagi qattiq yozuv emas - GitHub repo variable: RENDER_HEALTH_URL
+# Render bepul rejasida xizmat 15 daqiqa kiruvchi so'rovsiz qolsa uxlaydi.
+# Asosiy himoya - botning o'zi (selfping.py, har 8 daqiqa) va tashqi monitor (UptimeRobot, DEPLOY_UZ.md).
+# Bu workflow - qo'shimcha zaxira: GitHub jadvalni kechiktirishi yoki o'tkazib yuborishi mumkin
+# (tekshiruvda */10 jadvali 40 soatda atigi 6 marta, 6-9 soat oraliq bilan ishlagan).
+# Manzil koddagi qattiq yozuv emas - GitHub repo variable: RENDER_HEALTH_URL
 # (Settings -> Secrets and variables -> Actions -> Variables), masalan https://chicken24-bot.onrender.com/health
-# Eslatma: GitHub jadvalni kechiktirishi mumkin; repo 60 kun faolsiz qolsa jadval o'chadi.
 name: keep-alive
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions: {}
@@ -21,9 +23,10 @@ jobs:
           HEALTH_URL: ${{ vars.RENDER_HEALTH_URL }}
         run: |
           if [ -z "$HEALTH_URL" ]; then
-            echo "::warning::RENDER_HEALTH_URL repo variable o'rnatilmagan - so'rov yuborilmadi"
-            exit 0
+            echo "::error::RENDER_HEALTH_URL repo variable o'rnatilmagan"
+            exit 1
           fi
-          # Uxlab qolgan xizmat ~1 daqiqada uyg'onadi - shuning uchun uzoq kutish va qayta urinish
-          curl --fail --silent --show-error --max-time 100 --retry 3 --retry-delay 15 --retry-all-errors "$HEALTH_URL"
-          echo
+          # 3 marta qayta urinish (har biri 60 soniyagacha): uxlagan xizmat ~1 daqiqada uyg'onadi.
+          # Hammasi muvaffaqiyatsiz bo'lsa - curl xato kodi bilan chiqadi va workflow qizil bo'ladi.
+          curl --fail --silent --show-error --max-time 60 --retry 3 --retry-delay 10 --retry-all-errors \
+            -o /dev/null -w "HTTP %{http_code}, %{time_total}s\n" "$HEALTH_URL"
