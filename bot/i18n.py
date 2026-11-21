@@ -34,6 +34,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "welcome.cta": "Buyurtma berish uchun quyidagi tugmani bosing 👇",
         # --- klaviatura
         "btn.order": "Buyurtma berish",
+        "btn.feedback": "Taklif va shikoyat",
+        "feedback.text": "💬 Taklif yoki shikoyatingiz bo'lsa, bizga yozing — albatta ko'rib chiqamiz 👇",
         "menu.btn": "Buyurtma",  # matn maydoni yonidagi menyu tugmasi (qisqa)
         "currency": "so'm",
         # --- buyurtma rad etildi
@@ -129,6 +131,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "welcome.closed": "⛔ Сейчас мы закрыты, откроемся в {open}.",
         "welcome.cta": "Чтобы сделать заказ, нажмите кнопку ниже 👇",
         "btn.order": "Сделать заказ",
+        "btn.feedback": "Предложения и жалобы",
+        "feedback.text": "💬 Если у вас есть предложение или жалоба, напишите нам — мы обязательно рассмотрим 👇",
         "menu.btn": "Заказ",
         "currency": "сум",
         "order.closed": (

@@ -709,3 +709,14 @@ Kalit bo'lmasa: `masofa: taxminiy (to'g'ri chiziq x 1.3) - ORS_API_KEY berilmaga
 Narxni avvalgidek qat'iy 10 000 so'm qilish kerak bo'lsa: `DELIVERY_EXTRA_PER_KM` = `0` (masofa qancha bo'lsa ham
 10 000 so'm). Kodni to'liq qaytarish: `git revert <commit>` → `git push` va Mini App'ni oldingi deploy'ga qaytarish
 (Cloudflare → Deployments → Rollback) — ikkalasini birga.
+
+## I. "Taklif va shikoyat" va guruh chekidagi @mention
+
+- Salomlashuv rasmi ostida "Buyurtma berish" yonida **Taklif va shikoyat** (ruschada "Предложения и жалобы")
+  tugmasi bor — `https://t.me/Chicken24_uz` ni ochadi. `/taklif` buyrug'i ham shu tugmani chiqaradi.
+- Guruhga (`ORDERS_CHAT_ID`) keladigan har bir **yangi** chekning eng oxirgi qatori `@Chicken24_uz` — Telegram shu
+  akkauntni belgilaydi (bildirishnoma boradi). Bekor qilish xabarida va admin'ning shaxsiy nusxasida yo'q.
+- Boshqa akkaunt kerak bo'lsa: Render → `chicken24-bot` → Environment → `FEEDBACK_USERNAME` = `YangiUsername`
+  (`@` bilan yoki `@` siz; 5–32 belgi: harf, raqam, `_`). Berilmasa — `Chicken24_uz`. Saqlang → Render qayta ishga
+  tushiradi. Noto'g'ri qiymatda bot ishga tushmaydi va logda `FEEDBACK_USERNAME` xatosi chiqadi.
+- Mention bildirishnomasi borishi uchun o'sha akkaunt guruh a'zosi bo'lishi kerak.

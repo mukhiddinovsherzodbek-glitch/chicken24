@@ -161,7 +161,9 @@ def test_menu_has_russian_fields_and_names_unchanged():
         if it.get("variant"):
             assert it.get("variant_ru", "").strip(), f"{it['id']}: variant_ru"
         assert "name_ru" not in it, f"{it['id']}: taom nomi tarjima qilinmaydi"
-    assert names == EXPECTED_NAMES
+    # Avvalgi taomlar nomi o'zgarmagan (tarjima qilinmagan); yangi taomlar qo'shilishi mumkin
+    assert {k: names.get(k) for k in EXPECTED_NAMES} == EXPECTED_NAMES
+    assert all(name.strip() for name in names.values())
 
 
 def test_kombo_items_ru_keep_product_names():

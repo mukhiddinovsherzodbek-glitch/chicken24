@@ -33,6 +33,7 @@ COMMAND_NAME_RE = re.compile(r"[a-z0-9_]{1,32}")
 CUSTOMER_COMMANDS: list[tuple[str, str]] = [
     ("start", "Boshlash / Начать"),
     ("til", "Tilni o'zgartirish / Сменить язык"),
+    ("taklif", "Taklif va shikoyat / Предложения и жалобы"),
 ]
 
 ADMIN_COMMANDS: list[tuple[str, str]] = [

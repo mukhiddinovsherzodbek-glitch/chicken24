@@ -378,7 +378,7 @@ def test_real_menu_kombo_contents():
 
 def test_real_menu_json_is_valid():
     menu = load_menu_file(BOT_DIR.parent / "miniapp" / "menu.json")
-    assert len(menu.categories) == 7
+    assert len(menu.categories) >= 7 and len(menu.items) >= 56
 
 
 if __name__ == "__main__":

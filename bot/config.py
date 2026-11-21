@@ -54,6 +54,9 @@ DEFAULT_DELIVERY_BASE_FEE = 10000
 DEFAULT_DELIVERY_BASE_KM = 2
 DEFAULT_DELIVERY_EXTRA_PER_KM = 2500
 DEFAULT_ROAD_FACTOR = 1.3
+# "Taklif va shikoyat" tugmasi (https://t.me/<username>) va guruh cheklaridagi mention
+DEFAULT_FEEDBACK_USERNAME = "Chicken24_uz"
+_USERNAME_RE = re.compile(r"[A-Za-z0-9_]{5,32}")
 PAYMENT_METHOD_TEXT = "naqd (kuryerga)"
 
 # Spam himoyasi: bitta foydalanuvchidan shu oraliqda ko'pi bilan 1 ta buyurtma.
@@ -133,6 +136,12 @@ class Config:
     delivery_extra_per_km: int = DEFAULT_DELIVERY_EXTRA_PER_KM
     road_factor: float = DEFAULT_ROAD_FACTOR  # zaxira: to'g'ri chiziq * shu koeffitsient
     ors_api_key: str | None = field(default=None, repr=False)  # OpenRouteService (faqat server)
+    # Taklif/shikoyat uchun Telegram username (@ siz): tugma https://t.me/<username>, guruh chekida @<username>
+    feedback_username: str = DEFAULT_FEEDBACK_USERNAME
+
+    @property
+    def feedback_url(self) -> str:
+        return f"https://t.me/{self.feedback_username}"
 
     @property
     def use_webhook(self) -> bool:
@@ -215,6 +224,7 @@ def load_config() -> Config:
         self_ping_url=_self_ping_url(),
         orders_chat_id=_orders_chat_id(),
         orders_also_admin=_flag("ORDERS_ALSO_ADMIN"),
+        feedback_username=_feedback_username(),
         **_delivery_settings(),
     )
 
@@ -269,6 +279,17 @@ def _orders_chat_id() -> int | None:
     if value >= 0:
         raise ConfigError("ORDERS_CHAT_ID guruh ID si - manfiy son bo'lishi kerak (guruhda /guruh_id yozing).")
     return value
+
+
+def _feedback_username() -> str:
+    """FEEDBACK_USERNAME: "Chicken24_uz" yoki "@Chicken24_uz" (5-32 belgi: harf, raqam, _). Bo'sh - standart."""
+    raw = os.getenv("FEEDBACK_USERNAME", "").strip().lstrip("@")
+    if not raw:
+        return DEFAULT_FEEDBACK_USERNAME
+    if not _USERNAME_RE.fullmatch(raw):
+        raise ConfigError("FEEDBACK_USERNAME Telegram username bo'lishi kerak (5-32 belgi: harf, raqam, _), "
+                          f"hozir: {raw!r}")
+    return raw
 
 
 def _flag(name: str) -> bool:

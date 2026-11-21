@@ -1,76 +1,1110 @@
 {
   "_izoh": "NARX VA NOMLARNI TEKSHIRING! Bu fayl menyuning yagona manbasi: Mini App uni fetch qiladi, bot esa har buyurtmada qayta o'qiydi (botni qayta ishga tushirish shart emas). Kategoriyalar va taomlar massivdagi tartibda ko'rsatiladi. Taom id lari (masalan burger-1, chicken-12) o'zgartirilmasin: savat va buyurtmalar tarixi shu id ga bog'langan. chicken-19 va chicken-20 (Chicken Mangal 6 va 10 dona) narxi tasdiqlanmagani uchun hozircha qo'shilmagan, id lar ular uchun band. Narx butun son (so'm). RUSCHA: name_ru (kategoriya), desc_ru, items_ru, variant_ru (taom) - bo'lmasa o'zbekchasi ko'rsatiladi. TAOM NOMLARI (name) tarjima qilinmaydi, ruscha tilda ham o'zbekcha qoladi.",
   "categories": [
-    { "id": "burger", "name": "Burger", "name_ru": "Бургеры", "emoji": "🍔", "image": "images/cat-burger.webp" },
-    { "id": "lavash", "name": "Lavash", "name_ru": "Лаваши", "emoji": "🌯", "image": "images/cat-lavash.webp" },
-    { "id": "pizza", "name": "Pitsa", "name_ru": "Пицца", "emoji": "🍕", "image": "images/cat-pizza.webp" },
-    { "id": "chicken", "name": "Chicken", "name_ru": "Чикен", "emoji": "🍗", "image": "images/cat-chicken.webp" },
-    { "id": "kombo", "name": "Kombo va Aksiya", "name_ru": "Комбо и акции", "emoji": "🍱", "image": "images/cat-kombo.webp" },
-    { "id": "xachapuri", "name": "Xachapuri", "name_ru": "Хачапури", "emoji": "🥟", "image": "images/cat-xachapuri.webp" },
-    { "id": "qoshimchalar", "name": "Qo'shimchalar", "name_ru": "Дополнительно", "emoji": "🍟", "image": "images/cat-qoshimchalar.webp" }
+    {
+      "id": "burger",
+      "name": "Burger",
+      "name_ru": "Бургеры",
+      "emoji": "🍔",
+      "image": "images/cat-burger.webp"
+    },
+    {
+      "id": "lavash",
+      "name": "Lavash",
+      "name_ru": "Лаваши",
+      "emoji": "🌯",
+      "image": "images/cat-lavash.webp"
+    },
+    {
+      "id": "pizza",
+      "name": "Pitsa",
+      "name_ru": "Пицца",
+      "emoji": "🍕",
+      "image": "images/cat-pizza.webp"
+    },
+    {
+      "id": "chicken",
+      "name": "Chicken",
+      "name_ru": "Чикен",
+      "emoji": "🍗",
+      "image": "images/cat-chicken.webp"
+    },
+    {
+      "id": "kombo",
+      "name": "Kombo va Aksiya",
+      "name_ru": "Комбо и акции",
+      "emoji": "🍱",
+      "image": "images/cat-kombo.webp"
+    },
+    {
+      "id": "burger-kombo",
+      "name": "Burger kombo",
+      "name_ru": "Бургер комбо",
+      "emoji": "🍔",
+      "image": "images/cat-burger-kombo.webp"
+    },
+    {
+      "id": "pitsa-kombo",
+      "name": "Pitsa kombo",
+      "name_ru": "Пицца комбо",
+      "emoji": "🍕",
+      "image": "images/cat-pitsa-kombo.webp"
+    },
+    {
+      "id": "chicken-kombo",
+      "name": "Chicken kombo",
+      "name_ru": "Чикен комбо",
+      "emoji": "🍗",
+      "image": "images/cat-chicken-kombo.webp"
+    },
+    {
+      "id": "xachapuri",
+      "name": "Xachapuri",
+      "name_ru": "Хачапури",
+      "emoji": "🥟",
+      "image": "images/cat-xachapuri.webp"
+    },
+    {
+      "id": "qoshimchalar",
+      "name": "Qo'shimchalar",
+      "name_ru": "Дополнительно",
+      "emoji": "🍟",
+      "image": "images/cat-qoshimchalar.webp"
+    }
   ],
   "items": [
-    { "id": "burger-1", "category": "burger", "name": "Chicken Burger", "desc": "Kurka filesi, salat, pomidor, maxsus sous", "desc_ru": "Куриное филе, салат, помидор, фирменный соус", "price": 30000, "image": "assets/products/burgers/01_chicken_burger.webp" },
-    { "id": "burger-2", "category": "burger", "name": "Chicken Cheese", "desc": "Kurka filesi, cheddar pishloq, salat, pomidor, maxsus sous", "desc_ru": "Куриное филе, сыр чеддер, салат, помидор, фирменный соус", "price": 35000, "image": "assets/products/burgers/02_chicken_cheese.webp" },
-    { "id": "burger-3", "category": "burger", "name": "Chicken Hot", "desc": "Kurka filesi, jalapeno, salat, pomidor, achchiq sous", "desc_ru": "Куриное филе, халапеньо, салат, помидор, острый соус", "price": 35000, "image": "assets/products/burgers/03_chicken_hot.webp" },
-    { "id": "burger-4", "category": "burger", "name": "Chicken Big", "desc": "Ikki qavat kurka filesi, cheddar, salat, pomidor, maxsus sous", "desc_ru": "Двойное куриное филе, чеддер, салат, помидор, фирменный соус", "price": 50000, "image": "assets/products/burgers/04_chicken_big.webp" },
-    { "id": "burger-5", "category": "burger", "name": "Beef Burger", "desc": "Mol go'shti kotleti, salat, pomidor, maxsus sous", "desc_ru": "Говяжья котлета, салат, помидор, фирменный соус", "price": 40000, "image": "assets/products/burgers/05_beef_burger.webp" },
-    { "id": "burger-6", "category": "burger", "name": "Beef Cheese", "desc": "Mol go'shti kotleti, cheddar, salat, pomidor, maxsus sous", "desc_ru": "Говяжья котлета, чеддер, салат, помидор, фирменный соус", "price": 45000, "image": "assets/products/burgers/06_beef_cheese.webp" },
-    { "id": "burger-7", "category": "burger", "name": "Beef Hot", "desc": "Mol go'shti kotleti, jalapeno, salat, pomidor, achchiq sous", "desc_ru": "Говяжья котлета, халапеньо, салат, помидор, острый соус", "price": 45000, "image": "assets/products/burgers/07_beef_hot.webp" },
-    { "id": "burger-8", "category": "burger", "name": "Beef Big", "desc": "Ikki qavat mol go'shti kotleti, cheddar, salat, pomidor, sous", "desc_ru": "Двойная говяжья котлета, чеддер, салат, помидор, соус", "price": 60000, "image": "assets/products/burgers/08_beef_big.webp" },
-
-    { "id": "lavash-1", "category": "lavash", "name": "Chicken Lavash", "desc": "Kurka go'shti, salat, pomidor, bodring, maxsus sous", "desc_ru": "Куриное мясо, салат, помидор, огурец, фирменный соус", "price": 30000, "image": "assets/products/lavash/01_chicken_lavash.webp" },
-    { "id": "lavash-2", "category": "lavash", "name": "Lavash Cheese", "desc": "Kurka go'shti, cheddar, salat, pomidor, bodring, sous", "desc_ru": "Куриное мясо, чеддер, салат, помидор, огурец, соус", "price": 35000, "image": "assets/products/lavash/02_lavash_cheese.webp" },
-    { "id": "lavash-3", "category": "lavash", "name": "Lavash Hot", "desc": "Kurka go'shti, jalapeno, salat, pomidor, bodring, achchiq sous", "desc_ru": "Куриное мясо, халапеньо, салат, помидор, огурец, острый соус", "price": 35000, "image": "assets/products/lavash/03_lavash_hot.webp" },
-
-    { "id": "pizza-1", "category": "pizza", "name": "Margarita", "desc": "25 sm · Pomidor sousi, mozzarella, pomidor, bazilik", "desc_ru": "25 см · Томатный соус, моцарелла, помидор, базилик", "price": 40000, "image": "assets/products/pizza/01_pizza_margarita.webp" },
-    { "id": "pizza-2", "category": "pizza", "name": "Peperoni", "desc": "25 sm · Pomidor sousi, mozzarella, peperoni", "desc_ru": "25 см · Томатный соус, моцарелла, пепперони", "price": 50000, "image": "assets/products/pizza/02_pizza_peperoni.webp" },
-    { "id": "pizza-3", "category": "pizza", "name": "Tovuqli", "desc": "25 sm · Pomidor sousi, mozzarella, tovuq go'shti, bolgar qalampiri, piyoz", "desc_ru": "25 см · Томатный соус, моцарелла, курица, болгарский перец, лук", "price": 45000, "image": "assets/products/pizza/03_pizza_tovuqli.webp" },
-    { "id": "pizza-4", "category": "pizza", "name": "Go'shtli", "desc": "25 sm · Pomidor sousi, mozzarella, mol go'shti, piyoz", "desc_ru": "25 см · Томатный соус, моцарелла, говядина, лук", "price": 55000, "image": "assets/products/pizza/04_pizza_goshtli.webp" },
-    { "id": "pizza-5", "category": "pizza", "name": "Achchiq", "desc": "25 sm · Pomidor sousi, mozzarella, peperoni, jalapeno, achchiq sous", "desc_ru": "25 см · Томатный соус, моцарелла, пепперони, халапеньо, острый соус", "price": 55000, "image": "assets/products/pizza/05_pizza_achchiq.webp" },
-    { "id": "pizza-6", "category": "pizza", "name": "Maxsus", "desc": "25 sm · Tovuq, mol go'shti, qo'ziqorin, bolgar qalampiri, zaytun", "desc_ru": "25 см · Курица, говядина, грибы, болгарский перец, оливки", "price": 60000, "image": "assets/products/pizza/06_pizza_maxsus.webp" },
-
-    { "id": "chicken-1", "category": "chicken", "group": "Original Wings", "variant": "6 dona", "variant_ru": "6 шт.", "name": "Original Wings (6 dona)", "desc": "Klassik ta'm, har doim sevimli!", "desc_ru": "Классический вкус — всегда любимый!", "price": 35000, "image": "assets/products/chicken/01_original_wings_6dona.webp" },
-    { "id": "chicken-2", "category": "chicken", "group": "Original Wings", "variant": "10 dona", "variant_ru": "10 шт.", "name": "Original Wings (10 dona)", "desc": "Klassik ta'm, har doim sevimli!", "desc_ru": "Классический вкус — всегда любимый!", "price": 55000, "image": "assets/products/chicken/01_original_wings_10dona.webp" },
-    { "id": "chicken-3", "category": "chicken", "group": "Original Wings", "variant": "1 kg", "variant_ru": "1 кг", "name": "Original Wings (1 kg)", "desc": "Klassik ta'm, har doim sevimli!", "desc_ru": "Классический вкус — всегда любимый!", "price": 85000, "image": "assets/products/chicken/01_original_wings_1kg.webp" },
-    { "id": "chicken-4", "category": "chicken", "group": "Hot Wings", "variant": "6 dona", "variant_ru": "6 шт.", "name": "Hot Wings (6 dona)", "desc": "Achchiq sevuvchilar uchun!", "desc_ru": "Для любителей острого!", "price": 35000, "image": "assets/products/chicken/02_hot_wings_6dona.webp" },
-    { "id": "chicken-5", "category": "chicken", "group": "Hot Wings", "variant": "10 dona", "variant_ru": "10 шт.", "name": "Hot Wings (10 dona)", "desc": "Achchiq sevuvchilar uchun!", "desc_ru": "Для любителей острого!", "price": 55000, "image": "assets/products/chicken/02_hot_wings_10dona.webp" },
-    { "id": "chicken-6", "category": "chicken", "group": "Hot Wings", "variant": "1 kg", "variant_ru": "1 кг", "name": "Hot Wings (1 kg)", "desc": "Achchiq sevuvchilar uchun!", "desc_ru": "Для любителей острого!", "price": 85000, "image": "assets/products/chicken/02_hot_wings_1kg.webp" },
-    { "id": "chicken-7", "category": "chicken", "group": "Chicken Strips", "variant": "5 dona", "variant_ru": "5 шт.", "name": "Chicken Strips (5 dona)", "desc": "Xrustaqi va yumshoq ichida!", "desc_ru": "Хрустящие снаружи, нежные внутри!", "price": 35000, "image": "assets/products/chicken/03_chicken_strips_5dona.webp" },
-    { "id": "chicken-8", "category": "chicken", "group": "Chicken Strips", "variant": "8 dona", "variant_ru": "8 шт.", "name": "Chicken Strips (8 dona)", "desc": "Xrustaqi va yumshoq ichida!", "desc_ru": "Хрустящие снаружи, нежные внутри!", "price": 50000, "image": "assets/products/chicken/03_chicken_strips_8dona.webp" },
-    { "id": "chicken-9", "category": "chicken", "group": "Chicken Strips", "variant": "1 kg", "variant_ru": "1 кг", "name": "Chicken Strips (1 kg)", "desc": "Xrustaqi va yumshoq ichida!", "desc_ru": "Хрустящие снаружи, нежные внутри!", "price": 85000, "image": "assets/products/chicken/03_chicken_strips_1kg.webp" },
-    { "id": "chicken-10", "category": "chicken", "group": "Chicken Fillet", "variant": "2 dona", "variant_ru": "2 шт.", "name": "Chicken Fillet (2 dona)", "desc": "Katta va shirali tovuq filesi!", "desc_ru": "Большое и сочное куриное филе!", "price": 35000, "image": "assets/products/chicken/04_chicken_fillet_2dona.webp" },
-    { "id": "chicken-11", "category": "chicken", "group": "Chicken Fillet", "variant": "3 dona", "variant_ru": "3 шт.", "name": "Chicken Fillet (3 dona)", "desc": "Katta va shirali tovuq filesi!", "desc_ru": "Большое и сочное куриное филе!", "price": 50000, "image": "assets/products/chicken/04_chicken_fillet_3dona.webp" },
-    { "id": "chicken-12", "category": "chicken", "group": "Chicken Fillet", "variant": "1 kg", "variant_ru": "1 кг", "name": "Chicken Fillet (1 kg)", "desc": "Katta va shirali tovuq filesi!", "desc_ru": "Большое и сочное куриное филе!", "price": 85000, "image": "assets/products/chicken/04_chicken_fillet_1kg.webp" },
-    { "id": "chicken-13", "category": "chicken", "group": "Chicken Bites", "variant": "10 dona", "variant_ru": "10 шт.", "name": "Chicken Bites (10 dona)", "desc": "Bir luqmada baxt!", "desc_ru": "Счастье в одном кусочке!", "price": 30000, "image": "assets/products/chicken/05_chicken_bites_10dona.webp" },
-    { "id": "chicken-14", "category": "chicken", "group": "Chicken Bites", "variant": "15 dona", "variant_ru": "15 шт.", "name": "Chicken Bites (15 dona)", "desc": "Bir luqmada baxt!", "desc_ru": "Счастье в одном кусочке!", "price": 45000, "image": "assets/products/chicken/05_chicken_bites_15dona.webp" },
-    { "id": "chicken-15", "category": "chicken", "group": "Chicken Bites", "variant": "1 kg", "variant_ru": "1 кг", "name": "Chicken Bites (1 kg)", "desc": "Bir luqmada baxt!", "desc_ru": "Счастье в одном кусочке!", "price": 85000, "image": "assets/products/chicken/05_chicken_bites_1kg.webp" },
-    { "id": "chicken-16", "category": "chicken", "group": "Chicken Legs", "variant": "3 dona", "variant_ru": "3 шт.", "name": "Chicken Legs (3 dona)", "desc": "Shirali tovuq oyoqchalar!", "desc_ru": "Сочные куриные ножки!", "price": 35000, "image": "assets/products/chicken/06_chicken_legs_3dona.webp" },
-    { "id": "chicken-17", "category": "chicken", "group": "Chicken Legs", "variant": "5 dona", "variant_ru": "5 шт.", "name": "Chicken Legs (5 dona)", "desc": "Shirali tovuq oyoqchalar!", "desc_ru": "Сочные куриные ножки!", "price": 55000, "image": "assets/products/chicken/06_chicken_legs_5dona.webp" },
-    { "id": "chicken-18", "category": "chicken", "group": "Chicken Legs", "variant": "1 kg", "variant_ru": "1 кг", "name": "Chicken Legs (1 kg)", "desc": "Shirali tovuq oyoqchalar!", "desc_ru": "Сочные куриные ножки!", "price": 85000, "image": "assets/products/chicken/06_chicken_legs_1kg.webp" },
-    { "id": "chicken-21", "category": "chicken", "group": "Chicken Mangal", "variant": "1 kg", "variant_ru": "1 кг", "name": "Chicken Mangal (1 kg)", "desc": "Maxsus marinadda grilda pishirilgan tovuq!", "desc_ru": "Курица в особом маринаде, приготовленная на гриле!", "price": 85000, "image": "assets/products/chicken/07_chicken_mangal_1kg.webp" },
-    { "id": "chicken-22", "category": "chicken", "name": "Butun tovuq (1 dona)", "desc": "Tashqi qismi xrustaji, ichi juda shirali!", "desc_ru": "Хрустящая снаружи, очень сочная внутри!", "price": 60000, "image": "assets/products/chicken/08_butun_tovuq_1dona.webp" },
-    { "id": "chicken-23", "category": "chicken", "group": "Chicken Mix", "variant": "1 kg", "variant_ru": "1 кг", "name": "Chicken Mix (1 kg)", "desc": "Eng yaxshi tanlov! Turli qismlar birga!", "desc_ru": "Лучший выбор! Разные части курицы вместе!", "price": 85000, "image": "assets/products/chicken/09_chicken_mix_1kg.webp" },
-    { "id": "chicken-24", "category": "chicken", "group": "Chicken Mix", "variant": "12 dona", "variant_ru": "12 шт.", "name": "Chicken Mix (12 dona)", "desc": "Eng yaxshi tanlov! Turli qismlar birga!", "desc_ru": "Лучший выбор! Разные части курицы вместе!", "price": 65000, "image": "assets/products/chicken/10_chicken_mix_12dona.webp" },
-
-    { "id": "kombo-1", "category": "kombo", "name": "1 kg Chicken + 2 fri + 2 sous", "desc": "Maxsus aksiya! Avval 100 000 so'm", "desc_ru": "Специальная акция! Раньше 100 000 сум", "items": ["1 kg Chicken", "2 ta fri (100 gr)", "2 ta sous"], "items_ru": ["1 кг Chicken", "2 порции фри (100 г)", "2 соуса"], "price": 80000, "image": "assets/products/aksiya_kombo_600_v2/01_aksiya_1kg_chicken_fri.webp" },
-    { "id": "kombo-2", "category": "kombo", "name": "1 kg Chicken + 1 L Pepsi + 2 sous", "desc": "Maxsus aksiya! Avval 100 000 so'm", "desc_ru": "Специальная акция! Раньше 100 000 сум", "items": ["1 kg Chicken", "1 L Pepsi (bepul)", "2 ta sous (bepul)"], "items_ru": ["1 кг Chicken", "1 л Pepsi (бесплатно)", "2 соуса (бесплатно)"], "price": 80000, "image": "assets/products/aksiya_kombo_600_v2/02_aksiya_1kg_chicken_pepsi.webp" },
-    { "id": "kombo-3", "category": "kombo", "name": "Bir Oila Kombo", "desc": "", "items": ["2 ta pitsa (25 sm)", "2 ta burger (tovuq + go'sht)", "8 ta crispy chicken", "2 ta fri", "1 L Pepsi", "3 ta sous"], "items_ru": ["2 пиццы (25 см)", "2 бургера (куриный + говяжий)", "8 шт. crispy chicken", "2 порции фри", "1 л Pepsi", "3 соуса"], "price": 150000, "image": "assets/products/aksiya_kombo_600_v2/03_kombo_bir_oila.webp" },
-
-    { "id": "xachapuri-1", "category": "xachapuri", "name": "Xachapuri Adjarskiy", "desc": "Pishloq, tuxum va sariyog' uyg'unligi!", "desc_ru": "Сочетание сыра, яйца и сливочного масла!", "price": 45000, "image": "assets/products/xachapuri/07_xachapuri_adjarskiy.webp" },
-    { "id": "xachapuri-2", "category": "xachapuri", "name": "Xachapuri Klassik", "desc": "An'anaviy gruzin ta'mi!", "desc_ru": "Традиционный грузинский вкус!", "price": 40000, "image": "assets/products/xachapuri/08_xachapuri_klassik.webp" },
-
-    { "id": "qoshimchalar-1", "category": "qoshimchalar", "name": "Kartoshka Fri", "desc": "80 g · Oltin rangli, xushbo'y va mazali!", "desc_ru": "80 г · Золотистый, ароматный и вкусный!", "price": 15000, "image": "assets/products/garnir/01_kartoshka_fri.webp" },
-    { "id": "qoshimchalar-2", "category": "qoshimchalar", "name": "Kartoshka Shariklari", "desc": "6 dona · Tashqaridan xrust, ichidan yumshoq!", "desc_ru": "6 шт. · Хрустящие снаружи, мягкие внутри!", "price": 20000, "image": "assets/products/garnir/02_kartoshka_shariklari.webp" },
-    { "id": "qoshimchalar-3", "category": "qoshimchalar", "name": "Kartoshka Derevenskiy", "desc": "80 g · Tabiiy ziravorlar bilan!", "desc_ru": "80 г · С натуральными специями!", "price": 20000, "image": "assets/products/garnir/03_kartoshka_derevenskiy.webp" },
-    { "id": "qoshimchalar-4", "category": "qoshimchalar", "name": "Sirniye Palochki", "desc": "6 dona · Eritilgan pishloqning ajoyib ta'mi!", "desc_ru": "6 шт. · Восхитительный вкус тянущегося сыра!", "price": 30000, "image": "assets/products/garnir/04_sirniye_palochki.webp" },
-    { "id": "qoshimchalar-5", "category": "qoshimchalar", "name": "Sirniye Shariklar", "desc": "6 dona · Mayin pishloq, xrust qobiqda!", "desc_ru": "6 шт. · Нежный сыр в хрустящей корочке!", "price": 30000, "image": "assets/products/garnir/05_sirniye_shariklar.webp" },
-    { "id": "qoshimchalar-6", "category": "qoshimchalar", "name": "Chesnochniy Xleb", "desc": "3 bo'lak · Xushbo'y sarimsoq ta'mi!", "desc_ru": "3 ломтика · Ароматный чесночный вкус!", "price": 15000, "image": "assets/products/garnir/06_chesnochniy_xleb.webp" },
-    { "id": "qoshimchalar-7", "category": "qoshimchalar", "name": "Sezar salat", "desc": "1 porsiya · Tovuq go'shti, salat bargi, parmezan, krutonlar, Sezar sousi", "desc_ru": "1 порция · Курица, листья салата, пармезан, крутоны, соус «Цезарь»", "price": 25000, "image": "assets/products/salat/01_sezar_salat.webp" },
-    { "id": "qoshimchalar-8", "category": "qoshimchalar", "name": "Yashil salat", "desc": "1 porsiya · Bodring, pomidor, salat bargi, piyoz, zaytun moyi", "desc_ru": "1 порция · Огурец, помидор, листья салата, лук, оливковое масло", "price": 20000, "image": "assets/products/salat/02_yashil_salat.webp" },
-    { "id": "qoshimchalar-9", "category": "qoshimchalar", "name": "Ketchup", "desc": "", "price": 5000, "image": "assets/products/sous/01_ketchup.webp" },
-    { "id": "qoshimchalar-10", "category": "qoshimchalar", "name": "Sarimsoq sousi", "desc": "", "price": 5000, "image": "assets/products/sous/02_sarimsoq_sousi.webp" },
-    { "id": "qoshimchalar-11", "category": "qoshimchalar", "name": "Pishloq sousi", "desc": "", "price": 5000, "image": "assets/products/sous/03_pishloq_sousi.webp" },
-    { "id": "qoshimchalar-12", "category": "qoshimchalar", "name": "Achchiq sous", "desc": "", "price": 5000, "image": "assets/products/sous/04_achchiq_sous.webp" }
+    {
+      "id": "burger-1",
+      "category": "burger",
+      "name": "Chicken Burger",
+      "desc": "Kurka filesi, salat, pomidor, maxsus sous",
+      "desc_ru": "Куриное филе, салат, помидор, фирменный соус",
+      "price": 30000,
+      "image": "assets/products/burgers/01_chicken_burger.webp"
+    },
+    {
+      "id": "burger-2",
+      "category": "burger",
+      "name": "Chicken Cheese",
+      "desc": "Kurka filesi, cheddar pishloq, salat, pomidor, maxsus sous",
+      "desc_ru": "Куриное филе, сыр чеддер, салат, помидор, фирменный соус",
+      "price": 35000,
+      "image": "assets/products/burgers/02_chicken_cheese.webp"
+    },
+    {
+      "id": "burger-3",
+      "category": "burger",
+      "name": "Chicken Hot",
+      "desc": "Kurka filesi, jalapeno, salat, pomidor, achchiq sous",
+      "desc_ru": "Куриное филе, халапеньо, салат, помидор, острый соус",
+      "price": 35000,
+      "image": "assets/products/burgers/03_chicken_hot.webp"
+    },
+    {
+      "id": "burger-4",
+      "category": "burger",
+      "name": "Chicken Big",
+      "desc": "Ikki qavat kurka filesi, cheddar, salat, pomidor, maxsus sous",
+      "desc_ru": "Двойное куриное филе, чеддер, салат, помидор, фирменный соус",
+      "price": 50000,
+      "image": "assets/products/burgers/04_chicken_big.webp"
+    },
+    {
+      "id": "burger-5",
+      "category": "burger",
+      "name": "Beef Burger",
+      "desc": "Mol go'shti kotleti, salat, pomidor, maxsus sous",
+      "desc_ru": "Говяжья котлета, салат, помидор, фирменный соус",
+      "price": 40000,
+      "image": "assets/products/burgers/05_beef_burger.webp"
+    },
+    {
+      "id": "burger-6",
+      "category": "burger",
+      "name": "Beef Cheese",
+      "desc": "Mol go'shti kotleti, cheddar, salat, pomidor, maxsus sous",
+      "desc_ru": "Говяжья котлета, чеддер, салат, помидор, фирменный соус",
+      "price": 45000,
+      "image": "assets/products/burgers/06_beef_cheese.webp"
+    },
+    {
+      "id": "burger-7",
+      "category": "burger",
+      "name": "Beef Hot",
+      "desc": "Mol go'shti kotleti, jalapeno, salat, pomidor, achchiq sous",
+      "desc_ru": "Говяжья котлета, халапеньо, салат, помидор, острый соус",
+      "price": 45000,
+      "image": "assets/products/burgers/07_beef_hot.webp"
+    },
+    {
+      "id": "burger-8",
+      "category": "burger",
+      "name": "Beef Big",
+      "desc": "Ikki qavat mol go'shti kotleti, cheddar, salat, pomidor, sous",
+      "desc_ru": "Двойная говяжья котлета, чеддер, салат, помидор, соус",
+      "price": 60000,
+      "image": "assets/products/burgers/08_beef_big.webp"
+    },
+    {
+      "id": "lavash-1",
+      "category": "lavash",
+      "name": "Chicken Lavash",
+      "desc": "Kurka go'shti, salat, pomidor, bodring, maxsus sous",
+      "desc_ru": "Куриное мясо, салат, помидор, огурец, фирменный соус",
+      "price": 30000,
+      "image": "assets/products/lavash/01_chicken_lavash.webp"
+    },
+    {
+      "id": "lavash-2",
+      "category": "lavash",
+      "name": "Lavash Cheese",
+      "desc": "Kurka go'shti, cheddar, salat, pomidor, bodring, sous",
+      "desc_ru": "Куриное мясо, чеддер, салат, помидор, огурец, соус",
+      "price": 35000,
+      "image": "assets/products/lavash/02_lavash_cheese.webp"
+    },
+    {
+      "id": "lavash-3",
+      "category": "lavash",
+      "name": "Lavash Hot",
+      "desc": "Kurka go'shti, jalapeno, salat, pomidor, bodring, achchiq sous",
+      "desc_ru": "Куриное мясо, халапеньо, салат, помидор, огурец, острый соус",
+      "price": 35000,
+      "image": "assets/products/lavash/03_lavash_hot.webp"
+    },
+    {
+      "id": "pizza-1",
+      "category": "pizza",
+      "name": "Margarita",
+      "desc": "25 sm · Pomidor sousi, mozzarella, pomidor, bazilik",
+      "desc_ru": "25 см · Томатный соус, моцарелла, помидор, базилик",
+      "price": 40000,
+      "image": "assets/products/pizza/01_pizza_margarita.webp"
+    },
+    {
+      "id": "pizza-2",
+      "category": "pizza",
+      "name": "Peperoni",
+      "desc": "25 sm · Pomidor sousi, mozzarella, peperoni",
+      "desc_ru": "25 см · Томатный соус, моцарелла, пепперони",
+      "price": 50000,
+      "image": "assets/products/pizza/02_pizza_peperoni.webp"
+    },
+    {
+      "id": "pizza-3",
+      "category": "pizza",
+      "name": "Tovuqli",
+      "desc": "25 sm · Pomidor sousi, mozzarella, tovuq go'shti, bolgar qalampiri, piyoz",
+      "desc_ru": "25 см · Томатный соус, моцарелла, курица, болгарский перец, лук",
+      "price": 45000,
+      "image": "assets/products/pizza/03_pizza_tovuqli.webp"
+    },
+    {
+      "id": "pizza-4",
+      "category": "pizza",
+      "name": "Go'shtli",
+      "desc": "25 sm · Pomidor sousi, mozzarella, mol go'shti, piyoz",
+      "desc_ru": "25 см · Томатный соус, моцарелла, говядина, лук",
+      "price": 55000,
+      "image": "assets/products/pizza/04_pizza_goshtli.webp"
+    },
+    {
+      "id": "pizza-5",
+      "category": "pizza",
+      "name": "Achchiq",
+      "desc": "25 sm · Pomidor sousi, mozzarella, peperoni, jalapeno, achchiq sous",
+      "desc_ru": "25 см · Томатный соус, моцарелла, пепперони, халапеньо, острый соус",
+      "price": 55000,
+      "image": "assets/products/pizza/05_pizza_achchiq.webp"
+    },
+    {
+      "id": "pizza-6",
+      "category": "pizza",
+      "name": "Maxsus",
+      "desc": "25 sm · Tovuq, mol go'shti, qo'ziqorin, bolgar qalampiri, zaytun",
+      "desc_ru": "25 см · Курица, говядина, грибы, болгарский перец, оливки",
+      "price": 60000,
+      "image": "assets/products/pizza/06_pizza_maxsus.webp"
+    },
+    {
+      "id": "chicken-1",
+      "category": "chicken",
+      "group": "Original Wings",
+      "variant": "6 dona",
+      "variant_ru": "6 шт.",
+      "name": "Original Wings (6 dona)",
+      "desc": "Klassik ta'm, har doim sevimli!",
+      "desc_ru": "Классический вкус — всегда любимый!",
+      "price": 35000,
+      "image": "assets/products/chicken/01_original_wings_6dona.webp"
+    },
+    {
+      "id": "chicken-2",
+      "category": "chicken",
+      "group": "Original Wings",
+      "variant": "10 dona",
+      "variant_ru": "10 шт.",
+      "name": "Original Wings (10 dona)",
+      "desc": "Klassik ta'm, har doim sevimli!",
+      "desc_ru": "Классический вкус — всегда любимый!",
+      "price": 55000,
+      "image": "assets/products/chicken/01_original_wings_10dona.webp"
+    },
+    {
+      "id": "chicken-3",
+      "category": "chicken",
+      "group": "Original Wings",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Original Wings (1 kg)",
+      "desc": "Klassik ta'm, har doim sevimli!",
+      "desc_ru": "Классический вкус — всегда любимый!",
+      "price": 85000,
+      "image": "assets/products/chicken/01_original_wings_1kg.webp"
+    },
+    {
+      "id": "chicken-4",
+      "category": "chicken",
+      "group": "Hot Wings",
+      "variant": "6 dona",
+      "variant_ru": "6 шт.",
+      "name": "Hot Wings (6 dona)",
+      "desc": "Achchiq sevuvchilar uchun!",
+      "desc_ru": "Для любителей острого!",
+      "price": 35000,
+      "image": "assets/products/chicken/02_hot_wings_6dona.webp"
+    },
+    {
+      "id": "chicken-5",
+      "category": "chicken",
+      "group": "Hot Wings",
+      "variant": "10 dona",
+      "variant_ru": "10 шт.",
+      "name": "Hot Wings (10 dona)",
+      "desc": "Achchiq sevuvchilar uchun!",
+      "desc_ru": "Для любителей острого!",
+      "price": 55000,
+      "image": "assets/products/chicken/02_hot_wings_10dona.webp"
+    },
+    {
+      "id": "chicken-6",
+      "category": "chicken",
+      "group": "Hot Wings",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Hot Wings (1 kg)",
+      "desc": "Achchiq sevuvchilar uchun!",
+      "desc_ru": "Для любителей острого!",
+      "price": 85000,
+      "image": "assets/products/chicken/02_hot_wings_1kg.webp"
+    },
+    {
+      "id": "chicken-7",
+      "category": "chicken",
+      "group": "Chicken Strips",
+      "variant": "5 dona",
+      "variant_ru": "5 шт.",
+      "name": "Chicken Strips (5 dona)",
+      "desc": "Xrustaqi va yumshoq ichida!",
+      "desc_ru": "Хрустящие снаружи, нежные внутри!",
+      "price": 35000,
+      "image": "assets/products/chicken/03_chicken_strips_5dona.webp"
+    },
+    {
+      "id": "chicken-8",
+      "category": "chicken",
+      "group": "Chicken Strips",
+      "variant": "8 dona",
+      "variant_ru": "8 шт.",
+      "name": "Chicken Strips (8 dona)",
+      "desc": "Xrustaqi va yumshoq ichida!",
+      "desc_ru": "Хрустящие снаружи, нежные внутри!",
+      "price": 50000,
+      "image": "assets/products/chicken/03_chicken_strips_8dona.webp"
+    },
+    {
+      "id": "chicken-9",
+      "category": "chicken",
+      "group": "Chicken Strips",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Chicken Strips (1 kg)",
+      "desc": "Xrustaqi va yumshoq ichida!",
+      "desc_ru": "Хрустящие снаружи, нежные внутри!",
+      "price": 85000,
+      "image": "assets/products/chicken/03_chicken_strips_1kg.webp"
+    },
+    {
+      "id": "chicken-10",
+      "category": "chicken",
+      "group": "Chicken Fillet",
+      "variant": "2 dona",
+      "variant_ru": "2 шт.",
+      "name": "Chicken Fillet (2 dona)",
+      "desc": "Katta va shirali tovuq filesi!",
+      "desc_ru": "Большое и сочное куриное филе!",
+      "price": 35000,
+      "image": "assets/products/chicken/04_chicken_fillet_2dona.webp"
+    },
+    {
+      "id": "chicken-11",
+      "category": "chicken",
+      "group": "Chicken Fillet",
+      "variant": "3 dona",
+      "variant_ru": "3 шт.",
+      "name": "Chicken Fillet (3 dona)",
+      "desc": "Katta va shirali tovuq filesi!",
+      "desc_ru": "Большое и сочное куриное филе!",
+      "price": 50000,
+      "image": "assets/products/chicken/04_chicken_fillet_3dona.webp"
+    },
+    {
+      "id": "chicken-12",
+      "category": "chicken",
+      "group": "Chicken Fillet",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Chicken Fillet (1 kg)",
+      "desc": "Katta va shirali tovuq filesi!",
+      "desc_ru": "Большое и сочное куриное филе!",
+      "price": 85000,
+      "image": "assets/products/chicken/04_chicken_fillet_1kg.webp"
+    },
+    {
+      "id": "chicken-13",
+      "category": "chicken",
+      "group": "Chicken Bites",
+      "variant": "10 dona",
+      "variant_ru": "10 шт.",
+      "name": "Chicken Bites (10 dona)",
+      "desc": "Bir luqmada baxt!",
+      "desc_ru": "Счастье в одном кусочке!",
+      "price": 30000,
+      "image": "assets/products/chicken/05_chicken_bites_10dona.webp"
+    },
+    {
+      "id": "chicken-14",
+      "category": "chicken",
+      "group": "Chicken Bites",
+      "variant": "15 dona",
+      "variant_ru": "15 шт.",
+      "name": "Chicken Bites (15 dona)",
+      "desc": "Bir luqmada baxt!",
+      "desc_ru": "Счастье в одном кусочке!",
+      "price": 45000,
+      "image": "assets/products/chicken/05_chicken_bites_15dona.webp"
+    },
+    {
+      "id": "chicken-15",
+      "category": "chicken",
+      "group": "Chicken Bites",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Chicken Bites (1 kg)",
+      "desc": "Bir luqmada baxt!",
+      "desc_ru": "Счастье в одном кусочке!",
+      "price": 85000,
+      "image": "assets/products/chicken/05_chicken_bites_1kg.webp"
+    },
+    {
+      "id": "chicken-16",
+      "category": "chicken",
+      "group": "Chicken Legs",
+      "variant": "3 dona",
+      "variant_ru": "3 шт.",
+      "name": "Chicken Legs (3 dona)",
+      "desc": "Shirali tovuq oyoqchalar!",
+      "desc_ru": "Сочные куриные ножки!",
+      "price": 35000,
+      "image": "assets/products/chicken/06_chicken_legs_3dona.webp"
+    },
+    {
+      "id": "chicken-17",
+      "category": "chicken",
+      "group": "Chicken Legs",
+      "variant": "5 dona",
+      "variant_ru": "5 шт.",
+      "name": "Chicken Legs (5 dona)",
+      "desc": "Shirali tovuq oyoqchalar!",
+      "desc_ru": "Сочные куриные ножки!",
+      "price": 55000,
+      "image": "assets/products/chicken/06_chicken_legs_5dona.webp"
+    },
+    {
+      "id": "chicken-18",
+      "category": "chicken",
+      "group": "Chicken Legs",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Chicken Legs (1 kg)",
+      "desc": "Shirali tovuq oyoqchalar!",
+      "desc_ru": "Сочные куриные ножки!",
+      "price": 85000,
+      "image": "assets/products/chicken/06_chicken_legs_1kg.webp"
+    },
+    {
+      "id": "chicken-21",
+      "category": "chicken",
+      "group": "Chicken Mangal",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Chicken Mangal (1 kg)",
+      "desc": "Maxsus marinadda grilda pishirilgan tovuq!",
+      "desc_ru": "Курица в особом маринаде, приготовленная на гриле!",
+      "price": 85000,
+      "image": "assets/products/chicken/07_chicken_mangal_1kg.webp"
+    },
+    {
+      "id": "chicken-22",
+      "category": "chicken",
+      "name": "Butun tovuq (1 dona)",
+      "desc": "Tashqi qismi xrustaji, ichi juda shirali!",
+      "desc_ru": "Хрустящая снаружи, очень сочная внутри!",
+      "price": 60000,
+      "image": "assets/products/chicken/08_butun_tovuq_1dona.webp"
+    },
+    {
+      "id": "chicken-23",
+      "category": "chicken",
+      "group": "Chicken Mix",
+      "variant": "1 kg",
+      "variant_ru": "1 кг",
+      "name": "Chicken Mix (1 kg)",
+      "desc": "Eng yaxshi tanlov! Turli qismlar birga!",
+      "desc_ru": "Лучший выбор! Разные части курицы вместе!",
+      "price": 85000,
+      "image": "assets/products/chicken/09_chicken_mix_1kg.webp"
+    },
+    {
+      "id": "chicken-24",
+      "category": "chicken",
+      "group": "Chicken Mix",
+      "variant": "12 dona",
+      "variant_ru": "12 шт.",
+      "name": "Chicken Mix (12 dona)",
+      "desc": "Eng yaxshi tanlov! Turli qismlar birga!",
+      "desc_ru": "Лучший выбор! Разные части курицы вместе!",
+      "price": 65000,
+      "image": "assets/products/chicken/10_chicken_mix_12dona.webp"
+    },
+    {
+      "id": "kombo-1",
+      "category": "kombo",
+      "name": "1 kg Chicken + 2 fri + 2 sous",
+      "desc": "Maxsus aksiya! Avval 100 000 so'm",
+      "desc_ru": "Специальная акция! Раньше 100 000 сум",
+      "items": [
+        "1 kg Chicken",
+        "2 ta fri (100 gr)",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "1 кг Chicken",
+        "2 порции фри (100 г)",
+        "2 соуса"
+      ],
+      "price": 80000,
+      "image": "assets/products/aksiya_kombo_600_v2/01_aksiya_1kg_chicken_fri.webp"
+    },
+    {
+      "id": "kombo-2",
+      "category": "kombo",
+      "name": "1 kg Chicken + 1 L Pepsi + 2 sous",
+      "desc": "Maxsus aksiya! Avval 100 000 so'm",
+      "desc_ru": "Специальная акция! Раньше 100 000 сум",
+      "items": [
+        "1 kg Chicken",
+        "1 L Pepsi (bepul)",
+        "2 ta sous (bepul)"
+      ],
+      "items_ru": [
+        "1 кг Chicken",
+        "1 л Pepsi (бесплатно)",
+        "2 соуса (бесплатно)"
+      ],
+      "price": 80000,
+      "image": "assets/products/aksiya_kombo_600_v2/02_aksiya_1kg_chicken_pepsi.webp"
+    },
+    {
+      "id": "kombo-3",
+      "category": "kombo",
+      "name": "Bir Oila Kombo",
+      "desc": "",
+      "items": [
+        "2 ta pitsa (25 sm)",
+        "2 ta burger (tovuq + go'sht)",
+        "8 ta crispy chicken",
+        "2 ta fri",
+        "1 L Pepsi",
+        "3 ta sous"
+      ],
+      "items_ru": [
+        "2 пиццы (25 см)",
+        "2 бургера (куриный + говяжий)",
+        "8 шт. crispy chicken",
+        "2 порции фри",
+        "1 л Pepsi",
+        "3 соуса"
+      ],
+      "price": 150000,
+      "image": "assets/products/aksiya_kombo_600_v2/03_kombo_bir_oila.webp"
+    },
+    {
+      "id": "kombo-21",
+      "category": "kombo",
+      "name": "Mega Aksiya",
+      "desc": "Katta chegirma! Avval 219 000 so'm",
+      "desc_ru": "Большая скидка! Раньше 219 000 сум",
+      "items": [
+        "1 kg achchiq qanot",
+        "2 ta achchiq tovuqli pitsa",
+        "3 ta sous",
+        "1 L Coca-Cola",
+        "3 ta fri"
+      ],
+      "items_ru": [
+        "1 кг острых крылышек",
+        "2 острые пиццы с курицей",
+        "3 соуса",
+        "Coca-Cola 1 л",
+        "3 порции фри"
+      ],
+      "price": 169000,
+      "image": "assets/products/aksiya_kombo_600_v2/21_mega_akciya.webp"
+    },
+    {
+      "id": "kombo-22",
+      "category": "kombo",
+      "name": "Jigar Kombo",
+      "desc": "Yangi! Avval 149 000 so'm",
+      "desc_ru": "Новинка! Раньше 149 000 сум",
+      "items": [
+        "6 ta qanotcha",
+        "2 ta tovuqli burger",
+        "2 ta fri",
+        "1 L Coca-Cola"
+      ],
+      "items_ru": [
+        "6 крылышек",
+        "2 куриных бургера",
+        "2 порции фри",
+        "Coca-Cola 1 л"
+      ],
+      "price": 99000,
+      "image": "assets/products/aksiya_kombo_600_v2/22_jigar_kombo.webp"
+    },
+    {
+      "id": "kombo-23",
+      "category": "kombo",
+      "name": "Samarqand Combo",
+      "desc": "Samarqand uchun maxsus taklif! Avval 220 000 so'm",
+      "desc_ru": "Специальное предложение для Самарканда! Раньше 220 000 сум",
+      "items": [
+        "3 ta pitsa (25 sm)",
+        "0.5 kg chicken",
+        "3 ta fri",
+        "3 ta sous",
+        "1 L Coca-Cola"
+      ],
+      "items_ru": [
+        "3 пиццы (25 см)",
+        "0.5 кг chicken",
+        "3 порции фри",
+        "3 соуса",
+        "Coca-Cola 1 л"
+      ],
+      "price": 160000,
+      "image": "assets/products/aksiya_kombo_600_v2/23_samarqand_combo.webp"
+    },
+    {
+      "id": "kombo-19",
+      "category": "kombo",
+      "name": "SAMLAB Firmenniy kombo",
+      "desc": "Samarqand ta'mi!",
+      "desc_ru": "Вкус Самарканда!",
+      "items": [
+        "3 ta pitsa (Pepperoni + Tovuqli + Maxsus)",
+        "500 gr chicken",
+        "2 ta fri (2×100 gr)",
+        "3 ta sous (ketchup, sarimsoq, pishloq)",
+        "1 L Pepsi"
+      ],
+      "items_ru": [
+        "3 пиццы (Пепперони + Куриная + Фирменная)",
+        "500 г chicken",
+        "2 порции фри (2×100 г)",
+        "3 соуса (кетчуп, чесночный, сырный)",
+        "Pepsi 1 л"
+      ],
+      "price": 160000,
+      "image": "assets/products/oila_kombo/19_samlab_firmenniy_kombo.webp"
+    },
+    {
+      "id": "kombo-20",
+      "category": "kombo",
+      "name": "SAMLAB 2 Firmenniy kombo",
+      "desc": "Burger + Pitsa + Chicken",
+      "desc_ru": "Бургер + Пицца + Chicken",
+      "items": [
+        "1 ta pitsa (Maxsus)",
+        "2 ta burger",
+        "500 gr chicken",
+        "2 ta fri (2×100 gr)",
+        "3 ta sous",
+        "1 L Pepsi"
+      ],
+      "items_ru": [
+        "1 пицца (Фирменная)",
+        "2 бургера",
+        "500 г chicken",
+        "2 порции фри (2×100 г)",
+        "3 соуса",
+        "Pepsi 1 л"
+      ],
+      "price": 199000,
+      "image": "assets/products/oila_kombo/20_samlab2_firmenniy_kombo.webp"
+    },
+    {
+      "id": "kombo-15",
+      "category": "kombo",
+      "name": "Family Mix",
+      "desc": "",
+      "items": [
+        "2 ta pitsa",
+        "2 ta burger",
+        "2 ta sous",
+        "Pepsi 1 L"
+      ],
+      "items_ru": [
+        "2 пиццы",
+        "2 бургера",
+        "2 соуса",
+        "Pepsi 1 л"
+      ],
+      "price": 179000,
+      "image": "assets/products/oila_kombo/15_family_mix.webp"
+    },
+    {
+      "id": "kombo-17",
+      "category": "kombo",
+      "name": "Big Chick Family",
+      "desc": "",
+      "items": [
+        "1 kg chicken",
+        "2 ta burger",
+        "200 gr fri",
+        "3 ta sous",
+        "Pepsi 1 L"
+      ],
+      "items_ru": [
+        "1 кг chicken",
+        "2 бургера",
+        "200 г фри",
+        "3 соуса",
+        "Pepsi 1 л"
+      ],
+      "price": 185000,
+      "image": "assets/products/oila_kombo/17_big_chick_family.webp"
+    },
+    {
+      "id": "kombo-18",
+      "category": "kombo",
+      "name": "Mega Party",
+      "desc": "",
+      "items": [
+        "3 ta pitsa",
+        "500 gr chicken",
+        "2 ta burger",
+        "2 ta sous",
+        "Pepsi 1 L"
+      ],
+      "items_ru": [
+        "3 пиццы",
+        "500 г chicken",
+        "2 бургера",
+        "2 соуса",
+        "Pepsi 1 л"
+      ],
+      "price": 220000,
+      "image": "assets/products/oila_kombo/18_mega_party.webp"
+    },
+    {
+      "id": "kombo-5",
+      "category": "burger-kombo",
+      "name": "Burger Box",
+      "desc": "",
+      "items": [
+        "1 ta burger",
+        "100 gr fri",
+        "1 ta sous"
+      ],
+      "items_ru": [
+        "1 бургер",
+        "100 г фри",
+        "1 соус"
+      ],
+      "price": 38000,
+      "image": "assets/products/burger_kombo/05_burger_box.webp"
+    },
+    {
+      "id": "kombo-7",
+      "category": "burger-kombo",
+      "name": "Burger Duo",
+      "desc": "",
+      "items": [
+        "2 ta burger",
+        "100 gr fri",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "2 бургера",
+        "100 г фри",
+        "2 соуса"
+      ],
+      "price": 69000,
+      "image": "assets/products/burger_kombo/07_burger_duo.webp"
+    },
+    {
+      "id": "kombo-8",
+      "category": "burger-kombo",
+      "name": "Chick & Burger",
+      "desc": "",
+      "items": [
+        "1 ta burger",
+        "250 gr chicken",
+        "1 ta sous"
+      ],
+      "items_ru": [
+        "1 бургер",
+        "250 г chicken",
+        "1 соус"
+      ],
+      "price": 51000,
+      "image": "assets/products/burger_kombo/08_chick_burger.webp"
+    },
+    {
+      "id": "kombo-10",
+      "category": "burger-kombo",
+      "name": "Crispy Duo",
+      "desc": "",
+      "items": [
+        "2 ta burger",
+        "250 gr chicken",
+        "100 gr fri",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "2 бургера",
+        "250 г chicken",
+        "100 г фри",
+        "2 соуса"
+      ],
+      "price": 89000,
+      "image": "assets/products/burger_kombo/10_crispy_duo.webp"
+    },
+    {
+      "id": "kombo-14",
+      "category": "burger-kombo",
+      "name": "Burger Party",
+      "desc": "",
+      "items": [
+        "3 ta burger",
+        "200 gr fri",
+        "3 ta sous",
+        "Pepsi 1 L"
+      ],
+      "items_ru": [
+        "3 бургера",
+        "200 г фри",
+        "3 соуса",
+        "Pepsi 1 л"
+      ],
+      "price": 129000,
+      "image": "assets/products/burger_kombo/14_burger_party.webp"
+    },
+    {
+      "id": "kombo-9",
+      "category": "pitsa-kombo",
+      "name": "Pizza Solo",
+      "desc": "",
+      "items": [
+        "1 ta pitsa",
+        "100 gr fri",
+        "1 ta sous"
+      ],
+      "items_ru": [
+        "1 пицца",
+        "100 г фри",
+        "1 соус"
+      ],
+      "price": 59000,
+      "image": "assets/products/pitsa_kombo/09_pizza_solo.webp"
+    },
+    {
+      "id": "kombo-12",
+      "category": "pitsa-kombo",
+      "name": "Pizza Chick",
+      "desc": "",
+      "items": [
+        "1 ta pitsa",
+        "250 gr chicken",
+        "1 ta sous"
+      ],
+      "items_ru": [
+        "1 пицца",
+        "250 г chicken",
+        "1 соус"
+      ],
+      "price": 72000,
+      "image": "assets/products/pitsa_kombo/12_pizza_chick.webp"
+    },
+    {
+      "id": "kombo-13",
+      "category": "pitsa-kombo",
+      "name": "Duo Pizza",
+      "desc": "",
+      "items": [
+        "2 ta pitsa",
+        "2 ta sous",
+        "Pepsi 1 L"
+      ],
+      "items_ru": [
+        "2 пиццы",
+        "2 соуса",
+        "Pepsi 1 л"
+      ],
+      "price": 90000,
+      "image": "assets/products/pitsa_kombo/13_duo_pizza.webp"
+    },
+    {
+      "id": "kombo-16",
+      "category": "pitsa-kombo",
+      "name": "Trio Pizza",
+      "desc": "",
+      "items": [
+        "3 ta pitsa",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "3 пиццы",
+        "2 соуса"
+      ],
+      "price": 99000,
+      "image": "assets/products/pitsa_kombo/16_trio_pizza.webp"
+    },
+    {
+      "id": "kombo-24",
+      "category": "pitsa-kombo",
+      "name": "Pepperoni Box",
+      "desc": "Yangi kombo",
+      "desc_ru": "Новое комбо",
+      "items": [
+        "3 ta pepperoni pitsa (25 sm)",
+        "2 ta kartoshka fri (80 gr)",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "3 пиццы пепперони (25 см)",
+        "2 порции картофеля фри (80 г)",
+        "2 соуса"
+      ],
+      "price": 99000,
+      "image": "assets/products/pitsa_kombo/24_pepperoni_box.webp"
+    },
+    {
+      "id": "kombo-25",
+      "category": "pitsa-kombo",
+      "name": "3 Pizza",
+      "desc": "Tejamkor to'plam",
+      "desc_ru": "Выгодный набор",
+      "items": [
+        "3 ta pitsa (Pepperoni, Tovuqli, Maxsus)",
+        "2 porsiya kartoshka fri (80 gr × 2)",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "3 пиццы (Пепперони, Куриная, Фирменная)",
+        "2 порции картофеля фри (80 г × 2)",
+        "2 соуса"
+      ],
+      "price": 99000,
+      "image": "assets/products/pitsa_kombo/25_3_pizza.webp"
+    },
+    {
+      "id": "kombo-4",
+      "category": "chicken-kombo",
+      "name": "Mini Chick",
+      "desc": "",
+      "items": [
+        "250 gr chicken",
+        "100 gr fri",
+        "1 ta sous"
+      ],
+      "items_ru": [
+        "250 г chicken",
+        "100 г фри",
+        "1 соус"
+      ],
+      "price": 32000,
+      "image": "assets/products/chicken_kombo/04_mini_chick.webp"
+    },
+    {
+      "id": "kombo-6",
+      "category": "chicken-kombo",
+      "name": "Chick Box",
+      "desc": "",
+      "items": [
+        "500 gr chicken",
+        "100 gr fri",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "500 г chicken",
+        "100 г фри",
+        "2 соуса"
+      ],
+      "price": 55000,
+      "image": "assets/products/chicken_kombo/06_chick_box.webp"
+    },
+    {
+      "id": "kombo-11",
+      "category": "chicken-kombo",
+      "name": "Chicken Kilo",
+      "desc": "",
+      "items": [
+        "1 kg chicken",
+        "2 porsiya fri (2×100 gr)",
+        "2 ta sous"
+      ],
+      "items_ru": [
+        "1 кг chicken",
+        "2 порции фри (2×100 г)",
+        "2 соуса"
+      ],
+      "price": 90000,
+      "image": "assets/products/chicken_kombo/11_chicken_kilo.webp"
+    },
+    {
+      "id": "xachapuri-1",
+      "category": "xachapuri",
+      "name": "Xachapuri Adjarskiy",
+      "desc": "Pishloq, tuxum va sariyog' uyg'unligi!",
+      "desc_ru": "Сочетание сыра, яйца и сливочного масла!",
+      "price": 45000,
+      "image": "assets/products/xachapuri/07_xachapuri_adjarskiy.webp"
+    },
+    {
+      "id": "xachapuri-2",
+      "category": "xachapuri",
+      "name": "Xachapuri Klassik",
+      "desc": "An'anaviy gruzin ta'mi!",
+      "desc_ru": "Традиционный грузинский вкус!",
+      "price": 40000,
+      "image": "assets/products/xachapuri/08_xachapuri_klassik.webp"
+    },
+    {
+      "id": "qoshimchalar-1",
+      "category": "qoshimchalar",
+      "name": "Kartoshka Fri",
+      "desc": "80 g · Oltin rangli, xushbo'y va mazali!",
+      "desc_ru": "80 г · Золотистый, ароматный и вкусный!",
+      "price": 15000,
+      "image": "assets/products/garnir/01_kartoshka_fri.webp"
+    },
+    {
+      "id": "qoshimchalar-2",
+      "category": "qoshimchalar",
+      "name": "Kartoshka Shariklari",
+      "desc": "6 dona · Tashqaridan xrust, ichidan yumshoq!",
+      "desc_ru": "6 шт. · Хрустящие снаружи, мягкие внутри!",
+      "price": 20000,
+      "image": "assets/products/garnir/02_kartoshka_shariklari.webp"
+    },
+    {
+      "id": "qoshimchalar-3",
+      "category": "qoshimchalar",
+      "name": "Kartoshka Derevenskiy",
+      "desc": "80 g · Tabiiy ziravorlar bilan!",
+      "desc_ru": "80 г · С натуральными специями!",
+      "price": 20000,
+      "image": "assets/products/garnir/03_kartoshka_derevenskiy.webp"
+    },
+    {
+      "id": "qoshimchalar-4",
+      "category": "qoshimchalar",
+      "name": "Sirniye Palochki",
+      "desc": "6 dona · Eritilgan pishloqning ajoyib ta'mi!",
+      "desc_ru": "6 шт. · Восхитительный вкус тянущегося сыра!",
+      "price": 30000,
+      "image": "assets/products/garnir/04_sirniye_palochki.webp"
+    },
+    {
+      "id": "qoshimchalar-5",
+      "category": "qoshimchalar",
+      "name": "Sirniye Shariklar",
+      "desc": "6 dona · Mayin pishloq, xrust qobiqda!",
+      "desc_ru": "6 шт. · Нежный сыр в хрустящей корочке!",
+      "price": 30000,
+      "image": "assets/products/garnir/05_sirniye_shariklar.webp"
+    },
+    {
+      "id": "qoshimchalar-6",
+      "category": "qoshimchalar",
+      "name": "Chesnochniy Xleb",
+      "desc": "3 bo'lak · Xushbo'y sarimsoq ta'mi!",
+      "desc_ru": "3 ломтика · Ароматный чесночный вкус!",
+      "price": 15000,
+      "image": "assets/products/garnir/06_chesnochniy_xleb.webp"
+    },
+    {
+      "id": "qoshimchalar-7",
+      "category": "qoshimchalar",
+      "name": "Sezar salat",
+      "desc": "1 porsiya · Tovuq go'shti, salat bargi, parmezan, krutonlar, Sezar sousi",
+      "desc_ru": "1 порция · Курица, листья салата, пармезан, крутоны, соус «Цезарь»",
+      "price": 25000,
+      "image": "assets/products/salat/01_sezar_salat.webp"
+    },
+    {
+      "id": "qoshimchalar-8",
+      "category": "qoshimchalar",
+      "name": "Yashil salat",
+      "desc": "1 porsiya · Bodring, pomidor, salat bargi, piyoz, zaytun moyi",
+      "desc_ru": "1 порция · Огурец, помидор, листья салата, лук, оливковое масло",
+      "price": 20000,
+      "image": "assets/products/salat/02_yashil_salat.webp"
+    },
+    {
+      "id": "qoshimchalar-9",
+      "category": "qoshimchalar",
+      "name": "Ketchup",
+      "desc": "",
+      "price": 5000,
+      "image": "assets/products/sous/01_ketchup.webp"
+    },
+    {
+      "id": "qoshimchalar-10",
+      "category": "qoshimchalar",
+      "name": "Sarimsoq sousi",
+      "desc": "",
+      "price": 5000,
+      "image": "assets/products/sous/02_sarimsoq_sousi.webp"
+    },
+    {
+      "id": "qoshimchalar-11",
+      "category": "qoshimchalar",
+      "name": "Pishloq sousi",
+      "desc": "",
+      "price": 5000,
+      "image": "assets/products/sous/03_pishloq_sousi.webp"
+    },
+    {
+      "id": "qoshimchalar-12",
+      "category": "qoshimchalar",
+      "name": "Achchiq sous",
+      "desc": "",
+      "price": 5000,
+      "image": "assets/products/sous/04_achchiq_sous.webp"
+    }
   ]
 }

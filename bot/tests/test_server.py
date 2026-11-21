@@ -64,7 +64,8 @@ def env(**values):
     keys = ("BOT_TOKEN", "ADMIN_ID", "WEBAPP_URL", "DATABASE_URL", "WEBHOOK_URL", "WEBHOOK_SECRET", "PORT",
             "MENU_URL", "MENU_PATH", "DB_PATH", "PUBLIC_URL", "RENDER_EXTERNAL_URL",
             "ORDERS_CHAT_ID", "ORDERS_ALSO_ADMIN", "RESTAURANT_LAT", "RESTAURANT_LON", "DELIVERY_BASE_FEE",
-            "DELIVERY_BASE_KM", "DELIVERY_EXTRA_PER_KM", "ROAD_FACTOR", "ORS_API_KEY")
+            "DELIVERY_BASE_KM", "DELIVERY_EXTRA_PER_KM", "ROAD_FACTOR", "ORS_API_KEY",
+            "FEEDBACK_USERNAME")
     saved = {k: os.environ.get(k) for k in keys}
     original_dotenv = config_module.load_dotenv
     config_module.load_dotenv = lambda *a, **kw: False

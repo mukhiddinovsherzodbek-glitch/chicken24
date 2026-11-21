@@ -50,11 +50,11 @@ ADMIN_NAMES = ["start", "til", "excel", "excel_bugun", "excel_hafta", "excel_oy"
 
 # ------------------------------------------------------------ menyu
 
-def test_customer_menu_start_and_til_admin_full_list():
+def test_customer_menu_start_til_taklif_admin_full_list():
     bot = MenuBot()
     asyncio.run(commands.apply_commands(bot, 999))
     # Mijozlar - faqat shaxsiy chatlarda; guruhlarda bo'sh; Default o'rnatilmaydi (tozalangan - bo'sh)
-    assert bot.menus["all_private_chats"] == ["start", "til"]
+    assert bot.menus["all_private_chats"] == ["start", "til", "taklif"]
     assert bot.menus["all_group_chats"] == []
     assert "default" not in bot.menus
     assert bot.menus["chat:999"] == ADMIN_NAMES
@@ -75,6 +75,7 @@ def test_command_names_valid_and_descriptions_uzbek():
     assert dict(commands.CUSTOMER_COMMANDS) == {
         "start": "Boshlash / Начать",
         "til": "Tilni o'zgartirish / Сменить язык",
+        "taklif": "Taklif va shikoyat / Предложения и жалобы",
     }
     assert descs["til"] == "Tilni o'zgartirish / Сменить язык"
 
@@ -82,7 +83,7 @@ def test_command_names_valid_and_descriptions_uzbek():
 def test_admin_scope_error_does_not_crash():
     bot = MenuBot(fail_admin_scope=True)
     asyncio.run(commands.apply_commands(bot, 999))  # xato tashlamasligi kerak
-    assert bot.menus == {"all_private_chats": ["start", "til"], "all_group_chats": []}
+    assert bot.menus == {"all_private_chats": ["start", "til", "taklif"], "all_group_chats": []}
 
 
 # ------------------------------------------------------------ admin buyruqlari himoyasi

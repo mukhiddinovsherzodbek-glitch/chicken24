@@ -95,7 +95,11 @@ def test_first_upload_then_file_id_reused():
     markup = bot.photos[0][2]
     button = markup.inline_keyboard[-1][0]
     assert button.text == "Buyurtma berish" and url_query(markup) == {"lang": ["uz"]}
-    assert len(markup.inline_keyboard) == 1, "rasm ostida bitta inline tugma"
+    assert len(markup.inline_keyboard) == 1, "rasm ostida bitta qator"
+    order, feedback = markup.inline_keyboard[0]
+    assert order is button, "Buyurtma berish birinchi, Taklif va shikoyat yonida"
+    assert feedback.text == "Taklif va shikoyat" and feedback.url == "https://t.me/Chicken24_uz"
+    assert feedback.web_app is None and feedback.callback_data is None
 
 
 def test_russian_welcome_uses_ru_image_and_keyboard():
@@ -106,6 +110,8 @@ def test_russian_welcome_uses_ru_image_and_keyboard():
     assert Path(photo.path) == WELCOME_IMAGE_RU_PATH
     assert caption.startswith("Здравствуйте")
     assert markup.inline_keyboard[-1][0].text == "Сделать заказ" and url_query(markup) == {"lang": ["ru"]}
+    assert markup.inline_keyboard[0][1].text == "Предложения и жалобы"
+    assert markup.inline_keyboard[0][1].url == "https://t.me/Chicken24_uz"
 
 
 def test_russian_image_missing_falls_back_to_uz_image():
@@ -135,6 +141,7 @@ def test_missing_file_falls_back_to_text():
     handlers.WELCOME_IMAGE_PATH = WELCOME_IMAGE_PATH
     assert not bot.photos and bot.texts and bot.texts[0][0].startswith("Assalomu alaykum")
     assert bot.texts[0][1].inline_keyboard[-1][0].text == "Buyurtma berish"
+    assert bot.texts[0][1].inline_keyboard[0][1].text == "Taklif va shikoyat"
 
 
 class ResultDB:
@@ -195,6 +202,20 @@ def test_upload_error_falls_back_to_text():
     bot = FakeBot(photo_errors=5)
     welcome(bot)
     assert not bot.photos and len(bot.texts) == 1
+
+
+def test_feedback_username_from_config():
+    reset()
+    bot = FakeBot()
+    cfg = Config(bot_token="1:x", admin_id=999, webapp_url="https://example.pages.dev",
+                 menu_path=Path("menu.json"), db_path=Path("t.db"), feedback_username="Boshqa_admin")
+    asyncio.run(send_welcome(bot, 1, cfg, None, "uz", "Aziz"))
+    assert bot.photos[0][2].inline_keyboard[0][1].url == "https://t.me/Boshqa_admin"
+
+
+def test_order_keyboard_without_feedback_by_default():
+    markup = asyncio.run(order_keyboard(CONFIG, None, 1, "ru"))
+    assert [[b.text for b in row] for row in markup.inline_keyboard] == [["Сделать заказ"]]
 
 
 if __name__ == "__main__":

@@ -211,12 +211,20 @@ async def webapp_info(config: Config, db: Database | None, user_id: int, lang: s
 
 
 async def order_keyboard(config: Config, db: Database | None, user_id: int, lang: str | None,
-                         extra_rows: list[list[InlineKeyboardButton]] | None = None) -> InlineKeyboardMarkup:
+                         extra_rows: list[list[InlineKeyboardButton]] | None = None,
+                         feedback: bool = False) -> InlineKeyboardMarkup:
     """Xabar ostidagi INLINE "Buyurtma berish" (web_app) tugmasi. Inline/menyu tugmasidan ochilgan Mini App'da
-    Telegram initData beradi - buyurtma bot serveriga HTTP orqali (POST /api/orders) yuboriladi."""
+    Telegram initData beradi - buyurtma bot serveriga HTTP orqali (POST /api/orders) yuboriladi.
+    feedback=True - yonida (shu qatorda) "Taklif va shikoyat" URL tugmasi."""
     lang = i18n.normalize(lang)
     button = InlineKeyboardButton(text=t(lang, "btn.order"), web_app=await webapp_info(config, db, user_id, lang))
-    return InlineKeyboardMarkup(inline_keyboard=[*(extra_rows or []), [button]])
+    row = [button, feedback_button(config, lang)] if feedback else [button]
+    return InlineKeyboardMarkup(inline_keyboard=[*(extra_rows or []), row])
+
+
+def feedback_button(config: Config, lang: str | None) -> InlineKeyboardButton:
+    """"Taklif va shikoyat" -> https://t.me/<FEEDBACK_USERNAME>."""
+    return InlineKeyboardButton(text=t(i18n.normalize(lang), "btn.feedback"), url=config.feedback_url)
 
 
 async def remove_reply_keyboard(bot: Bot, chat_id: int) -> bool:
@@ -659,12 +667,12 @@ def welcome_image_path(lang: str | None) -> Path:
 async def send_welcome(
     bot: Bot, chat_id: int, config: Config, db: Database | None, lang: str | None, first_name: str | None
 ) -> None:
-    """Salomlashuv: rasm (tilga mos) + matn + ostida inline "Buyurtma berish". Izoh 1024 belgidan oshsa -
+    """Salomlashuv: rasm (tilga mos) + matn + ostida inline "Buyurtma berish" va "Taklif va shikoyat". Izoh 1024 belgidan oshsa -
     rasm alohida, matn va tugma alohida xabarda. Rasm yuborilmasa - faqat matn va tugma.
     Shaxsiy chatda chat_id = user_id."""
     lang = i18n.normalize(lang)
     caption = build_welcome_caption(first_name, business.is_open_now(), lang, config.delivery_base_fee)
-    keyboard = await order_keyboard(config, db, chat_id, lang)
+    keyboard = await order_keyboard(config, db, chat_id, lang, feedback=True)
     fits = len(caption) <= CAPTION_LIMIT
     path = welcome_image_path(lang)
     key = str(path)
@@ -716,6 +724,14 @@ async def cmd_start(message: Message, bot: Bot) -> None:
 async def cmd_lang(message: Message, bot: Bot) -> None:
     """Tilni istalgan payt almashtirish."""
     await send_lang_prompt(bot, message.chat.id)
+
+
+@router.message(Command("taklif"))
+async def cmd_feedback(message: Message, bot: Bot, config: Config, lang: str | None = None) -> None:
+    """/taklif: qisqa matn va "Taklif va shikoyat" tugmasi (https://t.me/<FEEDBACK_USERNAME>)."""
+    lang = i18n.normalize(lang)
+    await bot.send_message(message.chat.id, t(lang, "feedback.text"),
+                           reply_markup=InlineKeyboardMarkup(inline_keyboard=[[feedback_button(config, lang)]]))
 
 
 @router.callback_query(F.data.startswith(LANG_PREFIX))
@@ -1087,17 +1103,19 @@ async def _safe_edit(callback: CallbackQuery, text: str) -> None:
 
 # ---------------------------------------------------------------- admin'ga chek va qayta yuborish
 
-async def send_to_orders_chat(bot: Bot, config: Config, text: str, **kwargs: Any) -> tuple[Any, int]:
+async def send_to_orders_chat(bot: Bot, config: Config, text: str, group_suffix: str = "",
+                              **kwargs: Any) -> tuple[Any, int]:
     """Buyurtma xabari (chek, bekor qilish, ...) -> ORDERS_CHAT_ID guruhi; berilmagan bo'lsa ADMIN_ID.
     Guruhga yuborib bo'lmasa (bot chiqarilgan, guruh supergruppaga ko'chgan, ruxsat yo'q) - ZAXIRA: admin'ning
     shaxsiy chati + ogohlantirish. Admin'ga ham yetmasa - xato tashlanadi (chaqiruvchi notified=0 qoldiradi).
-    ORDERS_ALSO_ADMIN=1 bo'lsa - guruhdan tashqari admin'ga ham nusxa. Qaytadi: (yuborilgan xabar, chat ID)."""
+    ORDERS_ALSO_ADMIN=1 bo'lsa - guruhdan tashqari admin'ga ham nusxa. Qaytadi: (yuborilgan xabar, chat ID).
+    group_suffix - faqat guruhdagi xabar oxiriga qo'shiladi (admin nusxasi/zaxirasida yo'q)."""
     target = config.orders_chat_id
     if target is None:
         return await bot.send_message(config.admin_id, text, **kwargs), config.admin_id
     note = "⚠️ <b>Guruhga yuborib bo'lmadi</b> — xabar shaxsiy chatga yuborildi."
     try:
-        sent = await bot.send_message(target, text, **kwargs)
+        sent = await bot.send_message(target, text + group_suffix, **kwargs)
     except TelegramMigrateToChat as exc:
         logger.warning("Guruhga yuborib bo'lmadi: guruh supergruppaga ko'chgan - admin'ga zaxira")
         note += (f"\nGuruh supergruppaga ko'chgan. Yangi ID: <code>{exc.migrate_to_chat_id}</code> — "
@@ -1122,6 +1140,12 @@ async def send_to_orders_chat(bot: Bot, config: Config, text: str, **kwargs: Any
     return sent, config.admin_id
 
 
+def group_mention(config: Config) -> str:
+    """Guruhdagi YANGI buyurtma chekining eng oxirgi qatori: @<FEEDBACK_USERNAME> (Telegram mention qiladi).
+    Username faqat [A-Za-z0-9_] - HTML parse_mode uchun xavfsiz."""
+    return f"\n\n@{config.feedback_username}"
+
+
 async def deliver_receipt(bot: Bot, config: Config, db: Database, data: ReceiptData, resent: bool = False) -> bool:
     """Chekni buyurtmalar guruhiga (yoki admin'ga) yuboradi va notified=1 qiladi. Chek yetib borgan bo'lsa True.
 
@@ -1130,7 +1154,8 @@ async def deliver_receipt(bot: Bot, config: Config, db: Database, data: ReceiptD
     """
     try:
         sent, chat_id = await send_to_orders_chat(
-            bot, config, build_receipt(data, resent=resent), link_preview_options=NO_PREVIEW
+            bot, config, build_receipt(data, resent=resent), group_suffix=group_mention(config),
+            link_preview_options=NO_PREVIEW,
         )
     except Exception:
         logger.exception("Chek yuborilmadi (order_id=%s) - keyin qayta yuboriladi", data.order_id)
