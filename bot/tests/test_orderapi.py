@@ -36,7 +36,7 @@ from aiogram.types import Message  # noqa: E402
 from aiogram.utils.web_app import check_webapp_signature  # noqa: E402
 from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
 from handlers import on_cancel_order, on_web_app_data, resend_if_needed  # noqa: E402
-from test_flow import Env, FakeBot, FakeCallback, good, make_message  # noqa: E402
+from test_flow import Env, FakeBot, FakeCallback, good, make_message, NO_LOC  # noqa: E402
 from test_server import FAKE_TOKEN, SECRET, update_json  # noqa: E402
 
 business.is_open_now = lambda: True
@@ -109,7 +109,7 @@ async def make_env():
     bot = FakeBot()
     await on_web_app_data(make_message(USER_A, good(ref=LONG_OK))[0], **env.deps(bot), lang="uz")          # #1
     env.limiter.release(USER_A)
-    await on_web_app_data(make_message(USER_A, good(ref=LONG_REJ, lat=41.2995, lon=69.2401))[0],
+    await on_web_app_data(make_message(USER_A, good(ref=LONG_REJ, **NO_LOC))[0],
                           **env.deps(bot), lang="uz")                                                        # rad
     await on_web_app_data(make_message(USER_B, good(ref=SHORT_CX))[0], **env.deps(bot), lang="ru")         # #2
     await on_cancel_order(FakeCallback(USER_B, "cancel:2"), bot, env.config, env.db, lang="ru")              # bekor
@@ -170,7 +170,7 @@ def test_empty_init_data_works_by_ref_without_personal_data():
 
     out = run(go())
     assert out["ok"][:2] == (200, {"status": "accepted", "n": 1, "reason": None})
-    assert out["rej"][:2] == (200, {"status": "rejected", "n": None, "reason": "area"})
+    assert out["rej"][:2] == (200, {"status": "rejected", "n": None, "reason": "location"})
     assert out["cx"][:2] == (200, {"status": "cancelled", "n": 2, "reason": None})
     assert out["unknown"][:2] == (200, {"status": "unknown", "n": None, "reason": None})
     for status, data, body, headers in out.values():
@@ -378,7 +378,7 @@ def test_order_status_db_method():
         await env.db.connect()
         bot = FakeBot()
         ref = secrets.token_hex(16)
-        await on_web_app_data(make_message(9, good(ref=ref, lat=41.2995, lon=69.2401))[0], **env.deps(bot))
+        await on_web_app_data(make_message(9, good(ref=ref, **NO_LOC))[0], **env.deps(bot))
         env.limiter.release(9)
         before = await env.db.order_status(ref)
         # bir xil ref qayta keldi (takror so'rov) - yangi buyurtma yaratilmaydi, avvalgi natija qoladi
@@ -397,7 +397,7 @@ def test_order_status_db_method():
         return before, again, count, answers, owner, foreign, stored, ref2
 
     before, again, count, answers, owner, foreign, stored, ref2 = run(go())
-    assert before == again == {"status": "rejected", "n": None, "reason": "area"}
+    assert before == again == {"status": "rejected", "n": None, "reason": "location"}
     assert count == 0 and answers == [], "takror so'rovda yangi buyurtma ham, xabar ham yo'q"
     assert owner == {"status": "accepted", "n": 1, "reason": None}
     assert foreign["status"] == "unknown"

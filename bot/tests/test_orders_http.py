@@ -29,7 +29,7 @@ import webhook  # noqa: E402
 from aiogram import Bot, Dispatcher  # noqa: E402
 from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
 from handlers import on_lang_chosen, on_web_app_data  # noqa: E402
-from test_flow import Env, FakeBot, good, make_message, order_button  # noqa: E402
+from test_flow import Env, FakeBot, good, make_message, order_button, NO_LOC  # noqa: E402
 from test_orderapi import OTHER_TOKEN, make_init_data  # noqa: E402
 from test_server import FAKE_TOKEN, SECRET  # noqa: E402
 
@@ -227,7 +227,7 @@ def test_closed_hours_and_location_rejected_with_inline_button():
             closed = (await post(client, payload(), init_data=init))[:2]
         finally:
             business.is_open_now = lambda: True
-        area = (await post(client, payload(lat=41.2995, lon=69.2401), init_data=init))[:2]
+        area = (await post(client, payload(**NO_LOC), init_data=init))[:2]
         msgs = [s for s in bot.sent if s[0] == "message" and s[1] == USER]
         return closed, area, msgs, await count_orders(env)
 
@@ -237,10 +237,10 @@ def test_closed_hours_and_location_rejected_with_inline_button():
     finally:
         logging.disable(logging.NOTSET)
     assert closed == (200, {"status": "rejected", "n": None, "reason": "closed"})
-    assert area == (200, {"status": "rejected", "n": None, "reason": "area"})
+    assert area == (200, {"status": "rejected", "n": None, "reason": "location"})
     assert count == 0
     assert msgs[0][2].startswith("⛔") and order_button(msgs[0][3]["reply_markup"]).text == "Buyurtma berish"
-    assert "Samarqand" in msgs[1][2]
+    assert "lokatsiya" in msgs[1][2]
 
 
 def test_rate_limit_and_not_ready():
@@ -308,7 +308,7 @@ def test_logs_have_no_init_data_token_phone_address():
 
     async def fn(client, env, bot, _api):
         init = init_data_for(USER)
-        await post(client, payload(address_type="text", address_text="Registon ko'chasi 7", lat=None, lon=None),
+        await post(client, payload(address_details="Registon ko'chasi 7"),
                    init_data=init)
         await post(client, "{bad", init_data=init)
         await post(client, payload(phone="+99890"), init_data=init)
@@ -358,7 +358,7 @@ def test_send_data_and_http_paths_give_same_result():
             return body, strip(rows), texts, [s[2] for s in bot.sent if s[0] == "message" and s[1] == 999]
         return await with_api(fn)
 
-    for p in (payload(), payload(lat=41.2995, lon=69.2401), payload(items=[{"id": "yo'q", "qty": 1}])):
+    for p in (payload(), payload(**NO_LOC), payload(items=[{"id": "yo'q", "qty": 1}])):
         r1, rows1, texts1, admin1 = run(via_send_data(p))
         r2, rows2, texts2, admin2 = run(via_http(p))
         assert r1["status"] == r2["status"] and r1["reason"] == r2["reason"] and r1["n"] == r2["n"], (r1, r2)

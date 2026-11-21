@@ -356,3 +356,81 @@ class OrderSubmitAPI:
                 if not lock.locked():
                     del self._locks[key]
         return self._json(request, 200, outcome.as_json())
+
+
+CONFIG_PATH = "/api/config"
+QUOTE_PATH = "/api/delivery-quote"
+QUOTE_LIMIT_PER_MINUTE = 20               # foydalanuvchi boshiga (lokatsiya o'zgarganda qayta so'raladi)
+
+
+class DeliveryAPI:
+    """Yetkazish narxi Mini App uchun (narx FAQAT serverda hisoblanadi - Mini App formulani takrorlamaydi):
+
+    - GET /api/config          - autentifikatsiyasiz, keshlanadi: {"base_km", "base_fee", "extra_per_km"}.
+    - GET /api/delivery-quote  - ?lat=&lon=, initData SHART (401), foydalanuvchiga daqiqasiga 20 ta (429),
+      lat/lon diapazoni (400) -> {"km": 3.4, "fee": 12500, "approx": false}.
+    CORS: faqat GET (+ OPTIONS), faqat Mini App origin'i.
+    """
+
+    def __init__(self, *, config: Any, delivery: Any = None, clock: Callable[[], float] = time.time,
+                 monotonic: Callable[[], float] = time.monotonic) -> None:
+        if delivery is None:
+            import handlers  # bitta umumiy nusxa (kesh va kunlik hisoblagich buyurtmalar bilan umumiy)
+            delivery = handlers.default_delivery(config)
+        self._config = config
+        self._delivery = delivery
+        self._clock = clock
+        self._origin = origin_of(config.webapp_url)
+        self.user_limiter = WindowLimiter(QUOTE_LIMIT_PER_MINUTE, 60.0, monotonic)
+
+    def register(self, app: web.Application) -> None:
+        app.router.add_route("GET", CONFIG_PATH, self.handle_config)
+        app.router.add_route("OPTIONS", CONFIG_PATH, self.handle_config_preflight)
+        app.router.add_route("GET", QUOTE_PATH, self.handle_quote)
+        app.router.add_route("OPTIONS", QUOTE_PATH, self.handle_quote_preflight)
+
+    def _headers(self, request: web.Request, cache: str = "no-store") -> dict[str, str]:
+        headers = {"Vary": "Origin", "Cache-Control": cache}
+        if request.headers.get("Origin", "").lower().rstrip("/") == self._origin:
+            headers["Access-Control-Allow-Origin"] = self._origin
+        return headers
+
+    def _json(self, request: web.Request, status: int, body: dict, **extra: str) -> web.Response:
+        return web.json_response(body, status=status, headers={**self._headers(request), **extra})
+
+    def _origin_ok(self, request: web.Request) -> bool:
+        origin = request.headers.get("Origin")
+        return origin is None or origin.lower().rstrip("/") == self._origin
+
+    async def handle_config_preflight(self, request: web.Request) -> web.Response:
+        return preflight(request, self._origin, "GET", "Content-Type")
+
+    async def handle_quote_preflight(self, request: web.Request) -> web.Response:
+        return preflight(request, self._origin, "GET", ALLOWED_HEADERS)
+
+    async def handle_config(self, request: web.Request) -> web.Response:
+        if not self._origin_ok(request):
+            return self._json(request, 403, {"error": "forbidden"})
+        return web.json_response(self._delivery.tariff.as_json(),
+                                 headers=self._headers(request, cache="public, max-age=3600"))
+
+    async def handle_quote(self, request: web.Request) -> web.Response:
+        if not self._origin_ok(request):
+            return self._json(request, 403, {"error": "forbidden"})
+        try:
+            user_id = parse_init_data(init_data_from_request(request), self._config.bot_token, now=self._clock())["id"]
+        except InitDataError:
+            return self._json(request, 401, {"error": "unauthorized"})
+        wait = self.user_limiter.retry_after(user_id)
+        if wait > 0:
+            return self._json(request, 429, {"error": "too_many_requests"}, **{"Retry-After": str(max(1, round(wait)))})
+        try:
+            lat, lon = float(request.query.get("lat", "")), float(request.query.get("lon", ""))
+        except ValueError:
+            return self._json(request, 400, {"error": "bad_request"})
+        from delivery import valid_point
+        if not valid_point(lat, lon):
+            return self._json(request, 400, {"error": "bad_request"})
+        import handlers
+        quote = await handlers.safe_quote(self._delivery, lat, lon)
+        return self._json(request, 200, quote.as_json())

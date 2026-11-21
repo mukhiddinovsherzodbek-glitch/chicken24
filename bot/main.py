@@ -152,8 +152,20 @@ def startup_summary(config: Config, db: Database) -> str:
             f"baza={db.kind}, self-ping={ping}")
 
 
+def log_delivery_settings(config: Config) -> None:
+    """Yetkazish sozlamalari (kalit va koordinatalar ochiq yozilmaydi)."""
+    if not config.restaurant_from_env:
+        logger.warning("RESTAURANT_LAT / RESTAURANT_LON berilmagan - masofa VAQTINCHA Samarqand markazidan "
+                       "o'lchanmoqda. Render -> Environment ga restoran koordinatalarini qo'shing.")
+    logger.info("Yetkazish: %d so'm (%d km gacha) + %d so'm/km; masofa: %s", config.delivery_base_fee,
+                config.delivery_base_km, config.delivery_extra_per_km,
+                "OpenRouteService (yo'l)" if config.ors_api_key else
+                f"taxminiy (to'g'ri chiziq x {config.road_factor}) - ORS_API_KEY berilmagan")
+
+
 async def run(config: Config) -> None:
     started_at = datetime.now(timezone.utc)
+    log_delivery_settings(config)
     # Menyu: Pages (WEBAPP_URL/menu.json) asosiy, lokal menu.json - zaxira
     menu_store = MenuProvider(
         MenuStore(config.menu_path), config.menu_url, max_age=REMOTE_MENU_MAX_AGE_SECONDS
@@ -180,6 +192,8 @@ async def run(config: Config) -> None:
             ready = asyncio.Event()
             # Mini App buyurtma holatini shu serverdan so'raydi (CORS - faqat WEBAPP_URL origin'i)
             api = [
+                # Yetkazish narxi (GET /api/config, /api/delivery-quote) - narx faqat serverda
+                orderapi.DeliveryAPI(config=config),
                 orderapi.OrderStatusAPI(db=db, bot_token=config.bot_token,
                                         allowed_origin=orderapi.origin_of(config.webapp_url), ready=ready),
                 orderapi.OrderSubmitAPI(bot=bot, config=config, menu_store=menu_store, db=db,

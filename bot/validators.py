@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import i18n
@@ -40,7 +40,7 @@ class ValidationError(Exception):
     key + params - mijozga ko'rsatiladigan matn kaliti (i18n.py, "val.*"), klient ma'lumotisiz;
     message(lang) - shu matn kerakli tilda; user_message - o'zbekchasi,
     detail - admin logi uchun batafsil sabab (o'zbekcha),
-    code - Mini App'ga qaytariladigan qisqa sabab kodi (menu | area | data).
+    code - Mini App'ga qaytariladigan qisqa sabab kodi (menu | location | data).
     """
 
     def __init__(self, key: str, detail: str | None = None, code: str = "data", **params: Any) -> None:
@@ -92,31 +92,15 @@ class ValidatedOrder:
     address_details: str | None = None  # uy / qavat / xonadon (ixtiyoriy)
     comment: str | None = None  # izoh (ixtiyoriy)
     items_total: int = 0  # faqat taomlar
-    delivery_fee: int = 0  # yetkazish narxi (config.DELIVERY_FEE)
+    delivery_fee: int = 0  # yetkazish narxi (serverda masofadan hisoblanadi - delivery.py)
+    distance_km: float | None = None  # restorandan yo'l masofasi (0.1 km gacha)
+    distance_approx: bool = False  # True - taxminiy (to'g'ri chiziq * ROAD_FACTOR)
 
 
-@dataclass(frozen=True)
-class DeliveryArea:
-    """Yetkazish hududi: markaz va radius (sozlamasi config.py da)."""
-
-    name: str
-    lat: float
-    lon: float
-    radius_km: float
-
-    def distance_km(self, lat: float, lon: float) -> float:
-        return haversine_km(self.lat, self.lon, lat, lon)
-
-    def contains(self, lat: float, lon: float) -> bool:
-        return self.distance_km(lat, lon) <= self.radius_km
-
-
-def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Ikki nuqta orasidagi masofa (km), Yer radiusi 6371 km."""
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dp, dl = p2 - p1, math.radians(lon2 - lon1)
-    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return 2 * 6371.0 * math.asin(min(1.0, math.sqrt(a)))
+def with_delivery(order: "ValidatedOrder", fee: int, distance_km: float | None, approx: bool) -> "ValidatedOrder":
+    """Serverda hisoblangan yetkazish narxini qo'shadi: total = items_total + fee (mijoz summasi e'tiborsiz)."""
+    return replace(order, delivery_fee=fee, total=order.items_total + fee, distance_km=distance_km,
+                   distance_approx=approx)
 
 
 def _is_int(value: Any) -> bool:
@@ -268,35 +252,25 @@ def calculate_total(lines: tuple[OrderLine, ...] | list[OrderLine]) -> int:
     return sum(line.line_total for line in lines)
 
 
-def _check_area(lat: float, lon: float, area: DeliveryArea) -> None:
-    distance = area.distance_km(lat, lon)
-    if distance > area.radius_km:
-        # Hudud nomi matnga i18n dan keladi (uz: config.DELIVERY_AREA_NAME, ru: "г. Самарканд")
-        raise ValidationError(
-            "val.area",
-            f"hududdan tashqari lokatsiya: {lat}, {lon} ({distance:.1f} km > {area.radius_km} km)",
-            code="area",
-            km=f"{distance:.0f}",
-        )
-
-
 def validate_order(
     data: dict[str, Any],
     menu: Menu,
-    area: DeliveryArea | None = None,
     delivery_fee: int = 0,
+    *,
+    require_location: bool = False,
 ) -> ValidatedOrder:
     """To'liq tekshiruv. Muvaffaqiyatsiz bo'lsa ValidationError.
 
-    area berilsa, "location" turidagi manzil shu hudud ichida bo'lishi shart.
-    Qo'lda yozilgan manzilni koordinataga aylantirib bo'lmaydi - u tekshirilmaydi.
-    Umumiy summa = taomlar (menyudan) + delivery_fee (sozlamadan); klient yuborgan summa e'tiborsiz.
+    require_location=True (yangi buyurtmalar): manzil faqat joriy lokatsiya (lat/lon, to'g'ri diapazonda) -
+    yetkazish narxi masofadan hisoblanadi. Matnli manzil (address_type='text') eski ma'lumotlar uchun qoladi,
+    yangi buyurtmada rad etiladi (qo'shimcha izoh - address_details).
+    Hudud cheklovi yo'q. Umumiy summa = taomlar (menyudan) + delivery_fee; klient yuborgan summa e'tiborsiz.
     """
     name = _validate_name(data.get("name"))
     phone = _validate_phone(data.get("phone"))
+    if require_location and data.get("address_type") != "location":
+        raise ValidationError("val.loc_required", "lokatsiyasiz buyurtma", code="location")
     address_type, address_text, lat, lon = _validate_address(data)
-    if area is not None and lat is not None and lon is not None:
-        _check_area(lat, lon, area)
     address_details = _validate_optional_text(data.get("address_details"), DETAILS_MAX, "details", "address_details")
     comment = _validate_optional_text(data.get("comment"), COMMENT_MAX, "comment", "comment")
     lines = _validate_items(data.get("items"), menu)

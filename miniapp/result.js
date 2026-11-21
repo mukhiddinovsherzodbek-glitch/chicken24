@@ -10,7 +10,8 @@
   'use strict';
 
   // Bot qaytaradigan sabab kodlari (handlers.py): matni lug'atda - reject.<kod>
-  const REJECT_CODES = ['limit', 'menu', 'area', 'data', 'server', 'closed'];
+  // 'area' - eski buyurtmalar uchun (hudud cheklovi endi yo'q); 'location' - lokatsiyasiz buyurtma
+  const REJECT_CODES = ['limit', 'menu', 'area', 'location', 'data', 'server', 'closed'];
 
   /** URL query -> { kind: 'ok'|'rej'|'cx', ref, orderNo?, code? } yoki null. */
   function parseResult(search) {

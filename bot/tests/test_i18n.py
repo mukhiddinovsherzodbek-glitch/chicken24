@@ -29,7 +29,7 @@ from handlers import (  # noqa: E402
     on_lang_chosen,
     on_web_app_data,
 )
-from test_flow import Env, FakeBot, good, make_message, order_button  # noqa: E402
+from test_flow import Env, FakeBot, good, make_message, order_button, NO_LOC  # noqa: E402
 
 business.is_open_now = lambda: True
 
@@ -412,18 +412,18 @@ def test_order_answer_in_russian_admin_receipt_in_uzbek():
     assert "yangi buyurtma #1" in receipt and "Jami: 90 000 so'm" in receipt and "сум" not in receipt
 
 
-def test_rejection_in_russian_area():
+def test_rejection_in_russian_no_location():
     async def scenario():
         env = Env()
         await env.db.connect()
-        msg, answers = make_message(81, good(lat=41.2995, lon=69.2401))  # Toshkent
+        msg, answers = make_message(81, good(**NO_LOC))  # Toshkent
         await on_web_app_data(msg, **env.deps(FakeBot()), lang="ru")
         await env.db.close()
         return answers
 
     text, markup = run(scenario())[0]
-    assert text.startswith("❌ Заказ не принят.") and "г. Самарканд" in text
-    assert parse_qs(urlparse(order_button(markup).web_app.url).query)["r"] == ["area"]
+    assert text.startswith("❌ Заказ не принят.") and "местоположение" in text and "Самарканд" not in text
+    assert parse_qs(urlparse(order_button(markup).web_app.url).query)["r"] == ["location"]
 
 
 def test_order_without_saved_lang_uses_payload_lang_and_saves_it():

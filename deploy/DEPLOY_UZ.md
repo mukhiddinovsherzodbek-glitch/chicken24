@@ -82,10 +82,12 @@ Pages va zaxira farq qilsa, konsolda `Pages va lokal menu.json farq qiladi` ogoh
 ### Ish vaqti, yetkazish narxi, to'lov
 - Ish vaqti **10:00 – 03:00** (Samarqand vaqti). Yopiq vaqtda bot buyurtmani qabul qilmaydi,
   Mini App yuborish tugmasini o'chiradi va tepada ogohlantirish ko'rsatadi.
-- Yetkazish **10 000 so'm** (qat'iy), minimal buyurtma yo'q. Jami = taomlar + yetkazish (bot hisoblaydi).
+- Yetkazish **masofaga qarab** (restorandan yo'l bo'yicha): 2.5 km gacha 10 000 so'm, keyin har km +2 500 so'm
+  (batafsil: H bo'lim). Minimal buyurtma yo'q. Jami = taomlar + yetkazish (bot hisoblaydi).
 - To'lov: faqat naqd (kuryerga).
-- O'zgartirish: `config.py` dagi `OPEN_FROM`, `CLOSE_AT`, `DELIVERY_FEE` va xuddi shu qiymatlarni
+- Ish vaqtini o'zgartirish: `config.py` dagi `OPEN_FROM`, `CLOSE_AT` va xuddi shu qiymatlarni
   `miniapp/app.js` dagi `BUSINESS` ga yozing (test ikkalasi bir xilligini tekshiradi), keyin ikkalasini ham joylang.
+  Yetkazish narxi muhit o'zgaruvchilari bilan o'zgaradi (H bo'lim) — Mini App'ni qayta joylash shart emas.
 - Vaqt zonasi uchun `tzdata` kutubxonasi kerak — u `requirements.txt` da bor.
 
 ### Admin buyruqlari (faqat `ADMIN_ID` uchun ishlaydi)
@@ -163,9 +165,8 @@ Rasmni almashtirish: Files → kerakli rasmni yangisi bilan almashtiring va botn
 Rasm umuman topilmasa, bot oddiy matnli salomlashuv yuboradi.
 
 ### Yetkazish hududi
-Joriy lokatsiya faqat Samarqand shahri ichida (markazdan 12 km) qabul qilinadi.
-O'zgartirish: `config.py` dagi `DELIVERY_CENTER_LAT`, `DELIVERY_CENTER_LON`, `DELIVERY_RADIUS_KM`
-va xuddi shu qiymatlarni `miniapp/app.js` dagi `DELIVERY_AREA` ga yozing (test ikkalasi bir xilligini tekshiradi).
+Hudud cheklovi **yo'q** — istalgan joyga buyurtma beriladi, narx masofaga qarab (H bo'lim).
+Yangi buyurtmada **joriy lokatsiya shart** (uy / qavat / mo'ljal — qo'shimcha izoh maydonida).
 
 ### Muhim: bot faqat BITTA joyda ishlasin
 Bot serverda ishlayotganda uni kompyuteringizda ham `python main.py` bilan yoqmang —
@@ -500,7 +501,7 @@ beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://
 - Server initData imzosini tekshiradi (HMAC-SHA256, "WebAppData" + bot tokeni, constant-time, 24 soat).
   **user_id faqat initData dan** — tanadagi user_id e'tiborsiz. initData bo'sh/noto'g'ri — `401`.
 - Mantiq `sendData` bilan **bir xil funksiya** (`handlers.process_order`): narxlar menu.json dan, ish vaqti,
-  Samarqand hududi, yetkazish, 30 soniyalik himoya, admin cheki, mijozga tasdiq + bekor qilish tugmasi.
+  lokatsiya, yetkazish narxi masofadan, 30 soniyalik himoya, admin cheki, mijozga tasdiq + bekor qilish tugmasi.
 - **Takror yo'q:** bitta `(user_id, ref)` — bitta buyurtma (bazada unique indeks, SQLite va Postgres). Takror so'rov
   avvalgi natijani qaytaradi va mijozga/admin'ga qayta xabar yubormaydi. (Eski bazada takror bo'lsa indeks
   yaratilmaydi — logda ogohlantirish, bot ishlayveradi.)
@@ -645,3 +646,66 @@ baribir **faqat admin'ning bot bilan shaxsiy chatida** ishlaydi.
 Render → Environment → `ORDERS_CHAT_ID` ni **o'chiring** → Save Changes. Cheklar yana faqat admin'ning shaxsiy
 chatiga keladi (kod o'zgarmaydi). Guruhga yuborilgan eski cheklarni bekor qilish xabari baribir o'sha guruhga boradi
 (guruh ishlamasa — admin'ga). Botni guruhdan chiqarib yuborishingiz mumkin.
+
+---
+
+## H. Yetkazish narxi masofaga qarab
+
+**Qoida:** restorandan mijoz lokatsiyasigacha **avtomobil yo'li** masofasi (0.1 km gacha yaxlitlanadi).
+| Masofa | Yetkazish |
+|---|---|
+| 0 – 2.5 km | 10 000 so'm |
+| 2.6 – 3.5 km | 12 500 so'm |
+| 3.6 – 4.5 km | 15 000 so'm |
+| 4.6 – 5.5 km | 17 500 so'm |
+| ... | har km uchun +2 500 so'm (maksimal chegara yo'q) |
+
+Narx **faqat serverda** hisoblanadi (Mini App faqat ko'rsatadi; mijoz yuborgan summa e'tiborsiz). Lokatsiya aniq
+bo'lgach savatda "Yetkazish (3.4 km): 12 500 so'm" va jami ko'rinadi; narx olinmasa — "10 000 so'mdan, masofaga
+qarab", yakuniy summani bot hisoblaydi va tasdiq xabarida ko'rsatadi. Admin chekida masofa ham bor; taxminiy
+bo'lsa "(taxminiy masofa)". `/excel` da "Masofa (km)" ustuni.
+
+**Masofa manbai:** [OpenRouteService](https://openrouteservice.org) (bepul rejada kunlik limit bor). Kalit bo'lmasa,
+limit tugasa yoki xizmat javob bermasa — **taxminiy**: to'g'ri chiziq × `ROAD_FACTOR` (buyurtma hech qachon to'xtamaydi).
+Bir xil lokatsiya 24 soat keshlanadi; bot kuniga 1800 tadan ortiq so'rov yubormaydi.
+
+### H-1. Render'da sozlash (Render → `chicken24-bot` → Environment → Add Environment Variable)
+| Nomi | Majburiy | Qiymat |
+|---|---|---|
+| `RESTAURANT_LAT` | **ha** | Restoran kengligi, masalan `39.654812` |
+| `RESTAURANT_LON` | **ha** | Restoran uzunligi, masalan `66.975733` |
+| `ORS_API_KEY` | tavsiya | OpenRouteService kaliti (maxfiy!) — bo'lmasa masofa taxminiy |
+| `DELIVERY_BASE_FEE` | yo'q | Boshlang'ich narx, standart `10000` |
+| `DELIVERY_BASE_KM` | yo'q | Boshlang'ich narxdagi km, standart `2` |
+| `DELIVERY_EXTRA_PER_KM` | yo'q | Har qo'shimcha km, standart `2500` |
+| `ROAD_FACTOR` | yo'q | Taxminiy masofa koeffitsienti, standart `1.3` |
+
+→ **Save Changes** (bot qayta ishga tushadi). `RESTAURANT_LAT/LON` berilmasa masofa VAQTINCHA Samarqand markazidan
+o'lchanadi va logda ogohlantirish chiqadi: `RESTAURANT_LAT / RESTAURANT_LON berilmagan ...`.
+
+**Restoran koordinatasini olish:** Google Maps'da restoran ustiga bosing → pastda chiqqan `39.65..., 66.97...`
+raqamlarini nusxalang (birinchisi LAT, ikkinchisi LON).
+
+**ORS kalitini olish:** https://openrouteservice.org saytida bepul ro'yxatdan o'ting (sayt hozir HeiGIT akkaunt
+sahifasiga yo'naltiradi) va shaxsiy kabinetda API kalit (token) yarating → Render'da `ORS_API_KEY` ga qo'ying.
+Kabinetda bepul rejaning kunlik limitini ko'ring: bot o'zi kuniga 1800 tadan ortiq so'rov yubormaydi (limit
+kichikroq bo'lsa, yetishmagan so'rovlar uchun masofa taxminiy hisoblanadi). Kalitni chatga, git'ga yoki Mini App'ga
+yozmang — u faqat serverda ishlatiladi, loglarga chiqmaydi.
+Bot ishlatadigan manzil: `https://api.heigit.org/openrouteservice/v2/directions/driving-car/json`
+(`bot/delivery.py` → `ORS_DIRECTIONS_URL`).
+
+Logda tekshiring: `Yetkazish: 10000 so'm (2 km gacha) + 2500 so'm/km; masofa: OpenRouteService (yo'l)`.
+Kalit bo'lmasa: `masofa: taxminiy (to'g'ri chiziq x 1.3) - ORS_API_KEY berilmagan`.
+
+### H-2. Sinash
+1. Telegram'da inline "Buyurtma berish" → savat → **📍 Joriy manzilni yuborish** → bir soniyada
+   "Yetkazish (X.X km): ... so'm" va "Jami" chiqadi.
+2. Buyurtma bering → bot tasdiq xabarida "🚚 Yetkazish (X.X km): ..." ; chekda masofa (guruh/admin).
+3. Restorandan uzoqroq (masalan 5 km) nuqtadan sinab, narx jadvaldagidek oshishini tekshiring.
+4. `/excel` → "Masofa (km)" ustuni.
+5. ORS kalitisiz (o'chirib qo'ysangiz) chekda "(taxminiy masofa)" chiqadi — buyurtma baribir qabul qilinadi.
+
+### H-3. Orqaga qaytish
+Narxni avvalgidek qat'iy 10 000 so'm qilish kerak bo'lsa: `DELIVERY_EXTRA_PER_KM` = `0` (masofa qancha bo'lsa ham
+10 000 so'm). Kodni to'liq qaytarish: `git revert <commit>` → `git push` va Mini App'ni oldingi deploy'ga qaytarish
+(Cloudflare → Deployments → Rollback) — ikkalasini birga.

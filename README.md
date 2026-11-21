@@ -20,7 +20,8 @@ Mini App (miniapp/, statik HTML/CSS/JS, Cloudflare Pages)
    │ POST {bot serveri}/api/orders   (Authorization: tma <Telegram initData>;  narx YUBORILMAYDI)
    ▼
 Bot (bot/, Python 3.12, aiogram 3)
-   │ initData imzosi → ish vaqti → 30 s cheklov → validatsiya → narx menu.json dan → hudud tekshiruvi
+   │ initData imzosi → ish vaqti → 30 s cheklov → validatsiya (lokatsiya shart) → narx menu.json dan
+   │ → yetkazish narxi yo'l masofasidan (delivery.py: OpenRouteService, kesh; zaxira - taxminiy)
    │ → baza (orders, order_items) → mijozga tasdiq → admin'ga chek (+ lokatsiya)
    ▼
 Baza: PostgreSQL (Neon) serverda, SQLite lokal kompyuterda
@@ -40,7 +41,8 @@ Bot ikki rejimda ishlaydi (muhit o'zgaruvchilariga qarab, kod bir xil):
 | Fayl | Vazifasi |
 |---|---|
 | `bot/main.py` | Kirish nuqtasi: rejim tanlash, fon vazifalari, qayta ishga tushish |
-| `bot/config.py` | Muhit o'zgaruvchilari va doimiylar (ish vaqti, yetkazish narxi, hudud) |
+| `bot/config.py` | Muhit o'zgaruvchilari va doimiylar (ish vaqti, restoran joyi, yetkazish tarifi) |
+| `bot/delivery.py` | Yetkazish narxi: yo'l masofasi (OpenRouteService), kesh, kunlik limit, taxminiy zaxira |
 | `bot/handlers.py` | `/start`, `/til`, buyurtma (`process_order`), bekor qilish, admin buyruqlari, flood himoyasi |
 | `bot/orderapi.py` | Mini App API: `POST /api/orders`, `GET /api/order-status` (initData, CORS, cheklovlar) |
 | `bot/webhook.py` | Webhook HTTP serveri, `/health` |
@@ -71,8 +73,9 @@ Taom yozuvi namunasi:
 ```
 - `id` ni keyin o'zgartirmang: savat va «Buyurtmalarim» shu ID ga bog'langan.
 - Rasmni almashtirsangiz **fayl nomini ham o'zgartiring** — rasmlar mijoz telefonida 1 kun keshlanadi.
-- Ish vaqti, yetkazish narxi, hudud: `bot/config.py` **va** `miniapp/app.js` (`BUSINESS`, `DELIVERY_AREA`) —
-  ikkalasi bir xil bo'lishi shart (test tekshiradi).
+- Ish vaqti: `bot/config.py` **va** `miniapp/app.js` (`BUSINESS`) — ikkalasi bir xil bo'lishi shart (test tekshiradi).
+- Yetkazish narxi: faqat serverda (`delivery.py`, sozlamalari muhit o'zgaruvchilarida — DEPLOY_UZ.md H bo'lim);
+  Mini App narxni `/api/delivery-quote` dan oladi, formulani takrorlamaydi.
 
 ## Lokal ishga tushirish (Windows PowerShell)
 

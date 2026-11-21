@@ -218,66 +218,51 @@ def test_menu_store_reloads_on_change():
         assert store.get().items["a"].price == 2000
 
 
-# ------------------------------------------------------------ yetkazish hududi (Samarqand)
-
-def _area():
-    import config
-    from validators import DeliveryArea
-
-    return DeliveryArea(config.DELIVERY_AREA_NAME, config.DELIVERY_CENTER_LAT,
-                        config.DELIVERY_CENTER_LON, config.DELIVERY_RADIUS_KM)
-
+# ------------------------------------------------------------ manzil: hudud cheklovi yo'q, lokatsiya shart
 
 def _loc(lat, lon):
     return good_payload(address_type="location", address_text="", lat=lat, lon=lon)
 
 
-def test_area_samarkand_points_accepted():
-    area = _area()
+def test_any_location_accepted_no_area_limit():
     for name, (lat, lon) in {
         "Registon": (39.6548, 66.9757),
-        "Samarqand vokzali": (39.6820, 66.9300),
-        "Samarqand aeroporti": (39.7005, 66.9838),
-    }.items():
-        order = validate_order(_loc(lat, lon), TEST_MENU, area=area)
-        assert order.lat == lat, name
-
-
-def test_area_tashkent_and_abroad_rejected():
-    area = _area()
-    for name, (lat, lon) in {
+        "Urgut": (39.4020, 67.2430),
         "Toshkent": (41.2995, 69.2401),
         "Moskva": (55.7558, 37.6173),
-        "Urgut": (39.4020, 67.2430),
-        "markazdan 13 km shimolda": (39.6542 + 13 / 111.2, 66.9597),
     }.items():
+        order = validate_order(_loc(lat, lon), TEST_MENU, require_location=True)
+        assert (order.lat, order.lon) == (lat, lon), name
+
+
+def test_new_order_requires_location():
+    try:
+        validate_order(good_payload(address_text="Samarqand, Registon ko'chasi 5"), TEST_MENU, require_location=True)
+    except ValidationError as exc:
+        assert exc.code == "location" and exc.key == "val.loc_required"
+    else:
+        raise AssertionError("lokatsiyasiz buyurtma rad etilishi kerak")
+    for bad in ((95.0, 66.0), (39.0, 181.0)):
         try:
-            validate_order(_loc(lat, lon), TEST_MENU, area=area)
+            validate_order(_loc(*bad), TEST_MENU, require_location=True)
         except ValidationError as exc:
-            assert exc.code == "area", name
-            assert "Samarqand" in exc.user_message, name
-            continue
-        raise AssertionError(f"{name} rad etilishi kerak edi")
+            assert exc.key == "val.loc_bad"
+        else:
+            raise AssertionError(bad)
+    # eski ma'lumotlar uchun matnli manzil tekshiruvi qoladi (require_location=False)
+    order = validate_order(good_payload(address_text="Registon 5"), TEST_MENU)
+    assert order.address_type == "text" and order.address_text == "Registon 5"
 
 
-def test_area_does_not_apply_to_text_address():
-    # Qo'lda yozilgan manzil koordinataga aylanmaydi - u tekshirilmaydi (admin o'qiydi)
-    order = validate_order(good_payload(address_text="Samarqand, Registon ko'chasi 5"), TEST_MENU, area=_area())
-    assert order.address_text == "Samarqand, Registon ko'chasi 5"
-
-
-def test_area_config_matches_miniapp():
-    import re as _re
-
-    import config
-
+def test_miniapp_has_no_area_limit_and_no_fee_formula():
     js = (BOT_DIR.parent / "miniapp" / "app.js").read_text(encoding="utf-8")
-    m = _re.search(r"DELIVERY_AREA = \{ name: '([^']+)', lat: ([\d.]+), lon: ([\d.]+), radiusKm: ([\d.]+) \}", js)
-    assert m, "app.js da DELIVERY_AREA topilmadi"
-    assert m.group(1) == config.DELIVERY_AREA_NAME
-    assert float(m.group(2)) == config.DELIVERY_CENTER_LAT
-    assert float(m.group(3)) == config.DELIVERY_CENTER_LON
-    assert float(m.group(4)) == config.DELIVERY_RADIUS_KM
+    assert "DELIVERY_AREA" not in js and "radiusKm" not in js and "distanceKm" not in js
+    # narx formulasi Mini App'da takrorlanmaydi: tarif maydonlari bilan arifmetika va "billable" yo'q
+    assert "billable" not in js
+    for field in ("extra_per_km", "base_km"):
+        for op in (" *", " +", " -", "* ", "+ ", "- "):
+            assert f"{field}{op}" not in js.replace(f"tf.{field}", "").replace(f"d.{field}", ""), (field, op)
+    assert "/api/delivery-quote" in js and "/api/config" in js
 
 
 # ------------------------------------------------------------ ish vaqti va yetkazish narxi
@@ -308,6 +293,7 @@ def test_business_hours_uses_samarkand_time():
 
 def test_delivery_fee_added_and_client_sums_ignored():
     order = validate_order(good_payload(total=1, items_total=1, delivery_fee=0), TEST_MENU, delivery_fee=10000)
+    # (yangi buyurtmalarda delivery_fee serverda masofadan - process_order / delivery.py)
     assert order.items_total == 110000
     assert order.delivery_fee == 10000
     assert order.total == 120000
@@ -321,7 +307,7 @@ def test_business_config_matches_miniapp():
     js = (BOT_DIR.parent / "miniapp" / "app.js").read_text(encoding="utf-8")
     m = _re.search(r"BUSINESS = \{ deliveryFee: (\d+), openFrom: '(\d\d:\d\d)', closeAt: '(\d\d:\d\d)', utcOffsetHours: (\d+) \}", js)
     assert m, "app.js da BUSINESS topilmadi"
-    assert int(m.group(1)) == config.DELIVERY_FEE
+    assert int(m.group(1)) == config.DEFAULT_DELIVERY_BASE_FEE  # faqat "...dan" matni uchun zaxira
     assert m.group(2) == f"{config.OPEN_FROM:%H:%M}"
     assert m.group(3) == f"{config.CLOSE_AT:%H:%M}"
     assert int(m.group(4)) == config.UTC_OFFSET_HOURS

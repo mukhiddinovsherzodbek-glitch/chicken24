@@ -13,10 +13,7 @@ LANGS = ("uz", "ru")
 DEFAULT_LANG = "uz"
 
 # Hamma matnlarga avtomatik qo'shiladigan parametrlar (tilga qarab)
-COMMON = {
-    "uz": {"area": config.DELIVERY_AREA_NAME},
-    "ru": {"area": "г. Самарканд"},
-}
+COMMON: dict[str, dict[str, str]] = {"uz": {}, "ru": {}}
 
 TEXTS: dict[str, dict[str, str]] = {
     "uz": {
@@ -31,7 +28,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "welcome.friend": "do'stim",
         "welcome.title": "Chicken24 ga xush kelibsiz!",
         "welcome.hours": "🕙 Ish vaqti: {open} – {close}",
-        "welcome.delivery": "🚚 Yetkazish: {fee} ({area} bo'ylab)",
+        "welcome.delivery": "🚚 Yetkazish: {fee}dan, masofaga qarab",
         "welcome.payment": "💵 To'lov: naqd",
         "welcome.closed": "⛔ Hozir yopiqmiz, {open} da ochamiz.",
         "welcome.cta": "Buyurtma berish uchun quyidagi tugmani bosing 👇",
@@ -64,6 +61,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "totals.items": "Taomlar: {sum}",
         "totals.delivery": "🚚 Yetkazish: {sum}",
+        "totals.delivery_km": "🚚 Yetkazish ({km} km{approx}): {sum}",
+        "totals.approx": ", taxminiy",
         "totals.total": "💰 <b>Jami: {sum}</b>",
         "totals.payment": "💵 To'lov: naqd (kuryerga)",
         # --- bekor qilish
@@ -110,9 +109,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "Savatdagi ba'zi taomlar menyuda yo'q (menyu yangilangan bo'lishi mumkin). "
             "Savatni yangilab, qayta buyurtma bering."
         ),
-        "val.area": (
-            "Hozircha faqat {area} ichiga yetkazamiz. Yuborilgan joylashuv markazdan "
-            "~{km} km uzoqda. Manzilni {area} ichida qo'lda yozing."
+        "val.loc_required": (
+            "Joriy manzil (lokatsiya) yuborilmagan. Yetkazish narxi masofaga qarab hisoblanadi — "
+            "Mini App'da «📍 Joriy manzilni yuborish» tugmasini bosing."
         ),
     },
     "ru": {
@@ -125,7 +124,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "welcome.friend": "друг",
         "welcome.title": "Добро пожаловать в Chicken24!",
         "welcome.hours": "🕙 Мы работаем с {open} до {close}",
-        "welcome.delivery": "🚚 Доставка: {fee} (по {area})",
+        "welcome.delivery": "🚚 Доставка: от {fee}, в зависимости от расстояния",
         "welcome.payment": "💵 Оплата: наличными",
         "welcome.closed": "⛔ Сейчас мы закрыты, откроемся в {open}.",
         "welcome.cta": "Чтобы сделать заказ, нажмите кнопку ниже 👇",
@@ -155,6 +154,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "totals.items": "Блюда: {sum}",
         "totals.delivery": "🚚 Доставка: {sum}",
+        "totals.delivery_km": "🚚 Доставка ({km} км{approx}): {sum}",
+        "totals.approx": ", примерно",
         "totals.total": "💰 <b>Итого: {sum}</b>",
         "totals.payment": "💵 Оплата: наличными курьеру",
         "cancel.offer": "Передумали? Заказ #{id} можно отменить в течение {min} минут.",
@@ -198,9 +199,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "Некоторых блюд из корзины нет в меню (возможно, меню обновилось). "
             "Обновите корзину и оформите заказ снова."
         ),
-        "val.area": (
-            "Пока доставляем только по {area}. Отправленная точка находится в ~{km} км "
-            "от центра. Укажите адрес в пределах {area} вручную."
+        "val.loc_required": (
+            "Не отправлено текущее местоположение. Стоимость доставки зависит от расстояния — "
+            "нажмите в Mini App «📍 Отправить текущее местоположение»."
         ),
     },
 }

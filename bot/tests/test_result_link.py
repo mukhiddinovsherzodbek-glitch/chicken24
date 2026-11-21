@@ -29,7 +29,7 @@ from handlers import (  # noqa: E402
     on_lang_chosen,
     on_web_app_data,
 )
-from test_flow import Env, FakeBot, good, make_message, order_button  # noqa: E402
+from test_flow import Env, FakeBot, good, make_message, order_button, NO_LOC  # noqa: E402
 
 business.is_open_now = lambda: True
 
@@ -115,7 +115,7 @@ def test_rejected_and_cancelled_give_rej_and_cx():
         await env.db.connect()
         bot = LangBot()
         # rad etilgan (Toshkent - hududdan tashqari)
-        await on_web_app_data(make_message(3, good(ref="rejref1", lat=41.2995, lon=69.2401))[0],
+        await on_web_app_data(make_message(3, good(ref="rejref1", **NO_LOC))[0],
                               **env.deps(bot), lang="uz")
         rej = await til(env, bot, 3, "ru")
         # qabul qilinib, keyin bekor qilingan
@@ -129,7 +129,7 @@ def test_rejected_and_cancelled_give_rej_and_cx():
         return rej, after_cancel, cx
 
     rej, after_cancel, cx = run(scenario())
-    assert rej == {"lang": ["ru"], "rej": ["rejref1"], "r": ["area"]}
+    assert rej == {"lang": ["ru"], "rej": ["rejref1"], "r": ["location"]}
     assert after_cancel == {"lang": ["uz"], "cx": ["cxref12"]}
     assert cx == {"lang": ["ru"], "cx": ["cxref12"]}
 

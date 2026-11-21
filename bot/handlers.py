@@ -14,6 +14,7 @@ import time
 import weakref
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -48,11 +49,7 @@ import reports
 from config import (
     CANCEL_WINDOW_SECONDS,
     CLOSE_AT,
-    DELIVERY_AREA_NAME,
-    DELIVERY_CENTER_LAT,
-    DELIVERY_CENTER_LON,
-    DELIVERY_FEE,
-    DELIVERY_RADIUS_KM,
+    DEFAULT_DELIVERY_BASE_FEE,
     LOCAL_TZ,
     OPEN_FROM,
     PAYMENT_METHOD_TEXT,
@@ -65,13 +62,14 @@ from i18n import format_price, t
 from logsafe import mask_id
 from menu import MenuError, MenuProvider
 from orderapi import WindowLimiter  # orderapi handlers'ni faqat funksiya ichida import qiladi - aylana yo'q
+from delivery import DeliveryService, Quote, haversine_km, km_to_tenths, fee_for_tenths
 from validators import (
-    DeliveryArea,
     ValidatedOrder,
     ValidationError,
     extract_ref,
     parse_payload,
     validate_order,
+    with_delivery,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,8 +78,12 @@ router = Router(name="chicken24")
 CANCEL_PREFIX = "cancel:"  # callback_data: "cancel:<order_id>"
 LANG_PREFIX = "lang:"  # callback_data: "lang:uz" | "lang:ru"
 
-# Yetkazish hududi (sozlama config.py da) - serverdagi asosiy tekshiruv
-DELIVERY_AREA = DeliveryArea(DELIVERY_AREA_NAME, DELIVERY_CENTER_LAT, DELIVERY_CENTER_LON, DELIVERY_RADIUS_KM)
+
+
+@lru_cache(maxsize=8)
+def default_delivery(config: Config) -> DeliveryService:
+    """process_order'ga xizmat berilmasa (testlar, sayt) - sozlamadan yasalgan bitta umumiy nusxa."""
+    return DeliveryService.from_config(config)
 
 NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 
@@ -444,6 +446,8 @@ class ReceiptData:
     items_total: int
     delivery_fee: int
     phone_verified: bool = False  # telefon mijozning Telegram raqami bilan bir xil
+    distance_km: float | None = None  # restorandan yo'l masofasi (eski buyurtmalarda None)
+    distance_approx: bool = False     # taxminiy masofa (ORS emas)
 
     @classmethod
     def from_order(
@@ -467,6 +471,8 @@ class ReceiptData:
             items_total=order.items_total,
             delivery_fee=order.delivery_fee,
             phone_verified=phone_verified,
+            distance_km=order.distance_km,
+            distance_approx=order.distance_approx,
         )
 
     @classmethod
@@ -489,6 +495,8 @@ class ReceiptData:
             items_total=row.get("items_total") if row.get("items_total") is not None else row["total"],
             delivery_fee=row.get("delivery_fee") or 0,
             phone_verified=bool(row.get("phone_verified")),
+            distance_km=row.get("distance_km"),
+            distance_approx=bool(row.get("distance_approx")),
         )
 
     @property
@@ -532,20 +540,33 @@ def build_receipt(data: ReceiptData, resent: bool = False) -> str:
     lines.append("")
     lines += [
         f"Taomlar: {format_price(data.items_total, ADMIN_LANG)}",
-        f"🚚 Yetkazish: {format_price(data.delivery_fee, ADMIN_LANG)}",
+        f"🚚 Yetkazish: {format_price(data.delivery_fee, ADMIN_LANG)}" + distance_note(data.distance_km, data.distance_approx),
         f"💰 <b>Jami: {format_price(data.total, ADMIN_LANG)}</b>",
         f"💵 To'lov: {PAYMENT_METHOD_TEXT}",
     ]
     return "\n".join(lines)
 
 
+def distance_note(distance_km: float | None, approx: bool) -> str:
+    """Admin cheki: ' — 3.4 km' yoki ' — 3.4 km (taxminiy masofa)'; masofa yo'q (eski) - bo'sh."""
+    if distance_km is None:
+        return ""
+    return f" — {distance_km:.1f} km" + (" <i>(taxminiy masofa)</i>" if approx else "")
+
+
 # ---------------------------------------------------------------- mijoz matnlari
 
-def totals_lines(items_total: int, delivery_fee: int, total: int, lang: str | None) -> list[str]:
-    """Taomlar / Yetkazish / Jami / To'lov qatorlari - mijoz tilida."""
+def totals_lines(items_total: int, delivery_fee: int, total: int, lang: str | None,
+                 distance_km: float | None = None, approx: bool = False) -> list[str]:
+    """Taomlar / Yetkazish (masofa bilan) / Jami / To'lov qatorlari - mijoz tilida."""
+    if distance_km is None:
+        delivery = t(lang, "totals.delivery", sum=format_price(delivery_fee, lang))
+    else:
+        delivery = t(lang, "totals.delivery_km", sum=format_price(delivery_fee, lang), km=f"{distance_km:.1f}",
+                     approx=t(lang, "totals.approx") if approx else "")
     return [
         t(lang, "totals.items", sum=format_price(items_total, lang)),
-        t(lang, "totals.delivery", sum=format_price(delivery_fee, lang)),
+        delivery,
         t(lang, "totals.total", sum=format_price(total, lang)),
         t(lang, "totals.payment"),
     ]
@@ -558,7 +579,8 @@ def build_customer_text(order_id: int, order: ValidatedOrder, lang: str | None =
     for line in order.lines:
         lines.append(f"• {html.escape(line.name)} × {line.qty} = {format_price(line.line_total, lang)}")
     lines.append("")
-    lines += totals_lines(order.items_total, order.delivery_fee, order.total, lang)
+    lines += totals_lines(order.items_total, order.delivery_fee, order.total, lang,
+                          order.distance_km, order.distance_approx)
     lines.append("")
     lines.append(t(lang, "order.courier"))
     return "\n".join(lines)
@@ -596,7 +618,8 @@ async def safe_answer(message: Message, text: str, **kwargs) -> Any:
 CAPTION_LIMIT = 1024  # Telegram photo caption chegarasi
 
 
-def build_welcome_caption(first_name: str | None, is_open: bool, lang: str | None = "uz") -> str:
+def build_welcome_caption(first_name: str | None, is_open: bool, lang: str | None = "uz",
+                          base_fee: int = DEFAULT_DELIVERY_BASE_FEE) -> str:
     """Salomlashuv matni (HTML) mijoz tilida. Ism tozalanadi va qisqartiriladi.
     1024 belgidan (rasm izohi chegarasi) oshsa send_welcome rasmni va matnni alohida yuboradi."""
     name = html.escape((first_name or t(lang, "welcome.friend"))[:64])
@@ -605,7 +628,7 @@ def build_welcome_caption(first_name: str | None, is_open: bool, lang: str | Non
         t(lang, "welcome.title"),
         "",
         t(lang, "welcome.hours", open=f"{OPEN_FROM:%H:%M}", close=f"{CLOSE_AT:%H:%M}"),
-        t(lang, "welcome.delivery", fee=format_price(DELIVERY_FEE, lang)),
+        t(lang, "welcome.delivery", fee=format_price(base_fee, lang)),
         t(lang, "welcome.payment"),
     ]
     if not is_open:
@@ -637,7 +660,7 @@ async def send_welcome(
     rasm alohida, matn va tugma alohida xabarda. Rasm yuborilmasa - faqat matn va tugma.
     Shaxsiy chatda chat_id = user_id."""
     lang = i18n.normalize(lang)
-    caption = build_welcome_caption(first_name, business.is_open_now(), lang)
+    caption = build_welcome_caption(first_name, business.is_open_now(), lang, config.delivery_base_fee)
     keyboard = await order_keyboard(config, db, chat_id, lang)
     fits = len(caption) <= CAPTION_LIMIT
     path = welcome_image_path(lang)
@@ -791,10 +814,12 @@ async def process_order(
     raw: str,
     lang: str | None,
     reply: Reply,
+    delivery: DeliveryService | None = None,
 ) -> OrderOutcome:
     """Buyurtmani qayta ishlash - YAGONA mantiq (sendData / web_app_data va POST /api/orders uchun).
 
-    Ish vaqti -> 30 soniyalik himoya -> tekshiruv va narxni menu.json dan hisoblash (hudud, yetkazish) ->
+    Ish vaqti -> 30 soniyalik himoya -> tekshiruv va narxni menu.json dan hisoblash (lokatsiya shart) ->
+    yetkazish narxi yo'l masofasidan (delivery.py, kesh; xato bo'lsa taxminiy) ->
     saqlash -> mijozga tasdiq (ostida inline "Buyurtma berish") -> bekor qilish tugmasi (5 daqiqa) ->
     admin'ga chek (xato bo'lsa notified=0, keyin qayta yuboriladi). Rad etilsa - sabab mijozga va bazaga
     (last_rejections). Bir xil (user_id, ref) qayta kelsa - yangi buyurtma yaratilmaydi, xabar yuborilmaydi.
@@ -836,7 +861,8 @@ async def process_order(
         if parse_error is not None:
             raise parse_error
         menu = menu_store.get()
-        order = validate_order(data, menu, area=DELIVERY_AREA, delivery_fee=DELIVERY_FEE)
+        # Yangi buyurtma - joriy lokatsiya shart (narx masofadan); hudud cheklovi yo'q
+        order = validate_order(data, menu, require_location=True)
     except ValidationError as exc:
         limiter.release(user.id)
         logger.warning("Noto'g'ri buyurtma (user_id=%s): %s", user.id, exc.detail)
@@ -849,6 +875,10 @@ async def process_order(
         outcome = await rejected("server", f"{t(lang, 'error.generic')}\n\n{t(lang, 'error.cart_saved')}")
         await notify_admin(bot, config, "menu.json o'qilmadi", user, str(exc))
         return outcome
+
+    # 2b) Yetkazish narxi - FAQAT serverda, yo'l masofasidan (mijoz yuborgan summa e'tiborsiz)
+    quote = await safe_quote(delivery or default_delivery(config), order.lat, order.lon)
+    order = with_delivery(order, quote.fee, quote.km, quote.approx)
 
     # 3) Saqlash (telefon mijoz Telegram orqali ulashgan raqam bilan bir xilmi - tasdiqlangan belgisi)
     created_at = utc_now()
@@ -900,6 +930,17 @@ async def process_order(
     return OrderOutcome("accepted", order_id=order_id, lang=lang)
 
 
+async def safe_quote(service: DeliveryService, lat: float, lon: float) -> Quote:
+    """Masofa xizmati hech qachon buyurtmani to'xtatmaydi: kutilmagan xatoda ham taxminiy masofa."""
+    try:
+        return await service.quote(lat, lon)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Masofa hisoblanmadi (%s) - taxminiy masofa", type(exc).__name__)
+        km = haversine_km(service.origin[0], service.origin[1], lat, lon) * service.road_factor
+        tenths = km_to_tenths(repr(km))
+        return Quote(tenths=tenths, fee=fee_for_tenths(tenths, service.tariff), approx=True)
+
+
 @router.message(F.web_app_data)
 async def on_web_app_data(
     message: Message,
@@ -909,6 +950,7 @@ async def on_web_app_data(
     db: Database,
     limiter: RateLimiter,
     lang: str | None = None,
+    delivery: DeliveryService | None = None,
 ) -> None:
     """ZAXIRA yo'l: eski pastki (reply) klaviatura tugmasidan ochilgan Mini App sendData() bilan yuboradi.
     Mantiq - process_order (POST /api/orders bilan bir xil). Keyin mijoz yangi interfeysga o'tkaziladi."""
@@ -921,7 +963,7 @@ async def on_web_app_data(
         return await safe_answer(message, text, **kwargs)
 
     outcome = await process_order(bot=bot, config=config, menu_store=menu_store, db=db, limiter=limiter,
-                                  user=user, raw=raw, lang=lang, reply=reply)
+                                  user=user, raw=raw, lang=lang, reply=reply, delivery=delivery)
     await switch_to_inline(bot, config, db, user.id, outcome.lang)
 
 

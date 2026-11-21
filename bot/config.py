@@ -47,8 +47,13 @@ OPEN_FROM = time(10, 0)
 CLOSE_AT = time(3, 0)
 
 # ---------------------------------------------------------------- narx va to'lov
-# Yetkazish narxi (so'm), qat'iy; minimal buyurtma yo'q. Mini App: BUSINESS.deliveryFee.
-DELIVERY_FEE = 10000
+# Yetkazish narxi masofaga qarab (delivery.py), sozlamalari Config da (muhit o'zgaruvchilari bilan):
+# DELIVERY_BASE_FEE (10 000), DELIVERY_BASE_KM (2), DELIVERY_EXTRA_PER_KM (2 500), ROAD_FACTOR (1.3).
+# Mini App narxni faqat serverdan oladi (formulani takrorlamaydi). Minimal buyurtma yo'q.
+DEFAULT_DELIVERY_BASE_FEE = 10000
+DEFAULT_DELIVERY_BASE_KM = 2
+DEFAULT_DELIVERY_EXTRA_PER_KM = 2500
+DEFAULT_ROAD_FACTOR = 1.3
 PAYMENT_METHOD_TEXT = "naqd (kuryerga)"
 
 # Spam himoyasi: bitta foydalanuvchidan shu oraliqda ko'pi bilan 1 ta buyurtma.
@@ -76,17 +81,12 @@ RESEND_INTERVAL_SECONDS = 120
 # Yangi buyurtma hali yuborilayotgan bo'lishi mumkin - shundan yoshroqlariga tegilmaydi.
 RESEND_MIN_AGE_SECONDS = 60
 
-# ---------------------------------------------------------------- yetkazish hududi
-# Faqat shu doira ichidagi lokatsiyalar qabul qilinadi (bot - asosiy tekshiruv).
-# Mini App'dagi nusxa: miniapp/app.js -> DELIVERY_AREA (o'zgartirsangiz, ikkalasini ham yangilang).
-# Markaz: Samarqand shahri markazi (~ Registon'dan 1,5 km g'arbda).
-# Radius 12 km: shahar sharqdan g'arbga ~16 km, shimoldan janubga ~13 km cho'zilgan,
-# chekka mahallalar markazdan ~8 km gacha. 12 km - ularni ~4 km zaxira bilan qamraydi,
-# lekin Urgut (~37 km), Juma (~26 km) kabi tuman markazlariga yetmaydi.
-DELIVERY_AREA_NAME = "Samarqand shahri"
-DELIVERY_CENTER_LAT = 39.6542
-DELIVERY_CENTER_LON = 66.9597
-DELIVERY_RADIUS_KM = 12.0
+# ---------------------------------------------------------------- restoran joylashuvi
+# Yetkazish masofasi restorandan o'lchanadi: RESTAURANT_LAT / RESTAURANT_LON (muhit o'zgaruvchilari).
+# Berilmasa - VAQTINCHA Samarqand shahri markazi (ishga tushganda logga ogohlantirish).
+# Hudud cheklovi yo'q: istalgan joyga yetkaziladi, narx masofaga qarab.
+DEFAULT_RESTAURANT_LAT = 39.6542
+DEFAULT_RESTAURANT_LON = 66.9597
 
 REQUIRED_VARS = ("BOT_TOKEN", "ADMIN_ID", "WEBAPP_URL")
 
@@ -123,6 +123,16 @@ class Config:
     orders_chat_id: int | None = field(default=None, repr=False)
     # True - chek guruhdan tashqari admin'ning shaxsiy chatiga ham alohida yuboriladi
     orders_also_admin: bool = False
+    # Restoran (yetkazish masofasi shu nuqtadan). restaurant_from_env=False - vaqtinchalik standart nuqta
+    restaurant_lat: float = DEFAULT_RESTAURANT_LAT
+    restaurant_lon: float = DEFAULT_RESTAURANT_LON
+    restaurant_from_env: bool = False
+    # Yetkazish narxi (delivery.py): base_fee - base_km gacha, keyin har km uchun extra_per_km
+    delivery_base_fee: int = DEFAULT_DELIVERY_BASE_FEE
+    delivery_base_km: int = DEFAULT_DELIVERY_BASE_KM
+    delivery_extra_per_km: int = DEFAULT_DELIVERY_EXTRA_PER_KM
+    road_factor: float = DEFAULT_ROAD_FACTOR  # zaxira: to'g'ri chiziq * shu koeffitsient
+    ors_api_key: str | None = field(default=None, repr=False)  # OpenRouteService (faqat server)
 
     @property
     def use_webhook(self) -> bool:
@@ -205,7 +215,46 @@ def load_config() -> Config:
         self_ping_url=_self_ping_url(),
         orders_chat_id=_orders_chat_id(),
         orders_also_admin=_flag("ORDERS_ALSO_ADMIN"),
+        **_delivery_settings(),
     )
+
+
+def _number(name: str, default: float, *, kind: type = float, minimum: float | None = None,
+            maximum: float | None = None) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = kind(raw)
+    except ValueError:
+        raise ConfigError(f"{name} {'butun son' if kind is int else 'son'} bo'lishi kerak, hozir: {raw!r}") from None
+    if kind is float and value != value:  # NaN
+        raise ConfigError(f"{name} son bo'lishi kerak")
+    if (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+        raise ConfigError(f"{name} {minimum} .. {maximum} oralig'ida bo'lishi kerak, hozir: {raw!r}")
+    return value
+
+
+def _delivery_settings() -> dict:
+    lat_raw = os.getenv("RESTAURANT_LAT", "").strip()
+    lon_raw = os.getenv("RESTAURANT_LON", "").strip()
+    if bool(lat_raw) != bool(lon_raw):
+        raise ConfigError("RESTAURANT_LAT va RESTAURANT_LON ikkalasi birga berilishi kerak.")
+    lat = _number("RESTAURANT_LAT", DEFAULT_RESTAURANT_LAT, minimum=-90, maximum=90)
+    lon = _number("RESTAURANT_LON", DEFAULT_RESTAURANT_LON, minimum=-180, maximum=180)
+    key = os.getenv("ORS_API_KEY", "").strip() or None
+    return {
+        "restaurant_lat": lat,
+        "restaurant_lon": lon,
+        "restaurant_from_env": bool(lat_raw),
+        "delivery_base_fee": _number("DELIVERY_BASE_FEE", DEFAULT_DELIVERY_BASE_FEE, kind=int, minimum=0,
+                                     maximum=10_000_000),
+        "delivery_base_km": _number("DELIVERY_BASE_KM", DEFAULT_DELIVERY_BASE_KM, kind=int, minimum=0, maximum=1000),
+        "delivery_extra_per_km": _number("DELIVERY_EXTRA_PER_KM", DEFAULT_DELIVERY_EXTRA_PER_KM, kind=int,
+                                         minimum=0, maximum=10_000_000),
+        "road_factor": _number("ROAD_FACTOR", DEFAULT_ROAD_FACTOR, minimum=1.0, maximum=5.0),
+        "ors_api_key": key,
+    }
 
 
 def _orders_chat_id() -> int | None:

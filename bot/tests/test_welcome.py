@@ -62,7 +62,7 @@ def test_caption_content_and_escape():
     text = build_welcome_caption("<b>Ali</b>", is_open=True)
     assert text.startswith("Assalomu alaykum, &lt;b&gt;Ali&lt;/b&gt;! 👋")
     for part in ("Chicken24 ga xush kelibsiz!", "🕙 Ish vaqti: 10:00 – 03:00",
-                 "🚚 Yetkazish: 10 000 so'm (Samarqand shahri bo'ylab)", "💵 To'lov: naqd",
+                 "🚚 Yetkazish: 10 000 so'mdan, masofaga qarab", "💵 To'lov: naqd",
                  "Buyurtma berish uchun quyidagi tugmani bosing 👇"):
         assert part in text, part
     assert "yopiqmiz" not in text
@@ -72,7 +72,7 @@ def test_caption_content_and_escape():
 def test_caption_russian():
     text = build_welcome_caption("Ali", is_open=False, lang="ru")
     for part in ("Здравствуйте, Ali! 👋", "Добро пожаловать в Chicken24!", "🕙 Мы работаем с 10:00 до 03:00",
-                 "🚚 Доставка: 10 000 сум", "💵 Оплата: наличными", "⛔ Сейчас мы закрыты, откроемся в 10:00.",
+                 "🚚 Доставка: от 10 000 сум, в зависимости от расстояния", "💵 Оплата: наличными", "⛔ Сейчас мы закрыты, откроемся в 10:00.",
                  "Чтобы сделать заказ, нажмите кнопку ниже 👇"):
         assert part in text, part
     assert "so'm" not in text

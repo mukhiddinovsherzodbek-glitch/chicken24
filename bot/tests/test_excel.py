@@ -179,7 +179,7 @@ def test_orders_total_row_excludes_cancelled_and_matches_summary():
     assert ws.cell(r, 14).font.bold and ws.cell(r, 14).fill.fgColor.rgb.endswith("FFE1C7")
     assert ws.cell(r, 14).border.top.style == "medium"
     # Filtr faqat ma'lumot qatorlarida - jami qatori kirmaydi
-    assert ws.auto_filter.ref == "A1:O4"
+    assert ws.auto_filter.ref == "A1:P4"  # 16-ustun: Masofa (km)
     # Xulosa bilan aynan teng
     xul = {row[0]: row[1] for row in wb["Xulosa"].iter_rows(values_only=True) if row and row[0]}
     assert xul["Tushum (bekor qilinganlarsiz)"] == ws.cell(r, 14).value

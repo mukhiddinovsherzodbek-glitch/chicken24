@@ -35,8 +35,11 @@ DEFAULT_STATUS_TEXT = "qabul qilindi"
 
 ORDER_HEADERS = [
     "№", "Sana va vaqt", "Holat", "Ism", "Telefon", "Telegram username", "Manzil", "Uy/qavat/xonadon",
-    "Izoh", "Lokatsiya", "Taomlar", "Taomlar jami", "Yetkazish", "Jami", "To'lov",
+    "Izoh", "Lokatsiya", "Taomlar", "Taomlar jami", "Yetkazish", "Jami", "To'lov", "Masofa (km)",
 ]
+DISTANCE_COL = 16  # restorandan yo'l masofasi; taxminiy bo'lsa "(taxminiy)" deb ko'rinadi (qiymat - son)
+DISTANCE_FORMAT = "0.0"
+DISTANCE_APPROX_FORMAT = '0.0" (taxminiy)"'
 ITEM_HEADERS = ["Buyurtma №", "Sana", "Holat", "Taom nomi", "Soni", "Narx", "Summa"]
 
 
@@ -213,6 +216,7 @@ def build_workbook(orders: list[tuple[dict, list[dict]]], period: ExportRange, g
             delivery,
             int(row["total"]),
             "naqd",
+            row.get("distance_km"),  # eski buyurtmalarda bo'sh
         ])
         r = ws.max_row
         ws.cell(r, 2).number_format = DATE_FORMAT
@@ -227,6 +231,9 @@ def build_workbook(orders: list[tuple[dict, list[dict]]], period: ExportRange, g
             link.font = LINK_FONT
         for c in (12, 13, 14):
             ws.cell(r, c).number_format = MONEY_FORMAT
+        if row.get("distance_km") is not None:
+            ws.cell(r, DISTANCE_COL).number_format = (DISTANCE_APPROX_FORMAT if row.get("distance_approx")
+                                                      else DISTANCE_FORMAT)
         if cancelled:
             _grey_row(ws, r)
     _finish_table(ws, wrap_cols=(7, 9, 11))  # filtr shu yerda - faqat ma'lumot qatorlari

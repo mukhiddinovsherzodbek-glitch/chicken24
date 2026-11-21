@@ -43,7 +43,7 @@ from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
 from db import Database, clean_pg_error, describe_dsn, pg_connect_params, to_pg_sql, write_sqlite_copy  # noqa: E402
 from handlers import resend_if_needed, resend_unnotified, on_web_app_data  # noqa: E402
 from logsafe import SafeFormatter, mask_phone, scrub  # noqa: E402
-from test_flow import Env, FakeBot, good, make_message  # noqa: E402
+from test_flow import Env, FakeBot, good, make_message, NO_LOC  # noqa: E402
 from validators import ValidationError, parse_payload, validate_order  # noqa: E402
 
 business.is_open_now = lambda: True
@@ -63,7 +63,8 @@ def env(**values):
     """Muhit o'zgaruvchilarini vaqtincha o'rnatadi; bot/.env o'qilmaydi (load_dotenv o'chirilgan)."""
     keys = ("BOT_TOKEN", "ADMIN_ID", "WEBAPP_URL", "DATABASE_URL", "WEBHOOK_URL", "WEBHOOK_SECRET", "PORT",
             "MENU_URL", "MENU_PATH", "DB_PATH", "PUBLIC_URL", "RENDER_EXTERNAL_URL",
-            "ORDERS_CHAT_ID", "ORDERS_ALSO_ADMIN")
+            "ORDERS_CHAT_ID", "ORDERS_ALSO_ADMIN", "RESTAURANT_LAT", "RESTAURANT_LON", "DELIVERY_BASE_FEE",
+            "DELIVERY_BASE_KM", "DELIVERY_EXTRA_PER_KM", "ROAD_FACTOR", "ORS_API_KEY")
     saved = {k: os.environ.get(k) for k in keys}
     original_dotenv = config_module.load_dotenv
     config_module.load_dotenv = lambda *a, **kw: False
@@ -426,9 +427,8 @@ async def filled_sqlite_env() -> Env:
     await env_.db.save_verified_phone(1, "+998901234567", datetime.now(timezone.utc))
     await on_web_app_data(make_message(1, good())[0], **env_.deps(bot))
     env_.limiter.release(1)
-    await on_web_app_data(make_message(1, good(ref="rej00001", lat=41.2995, lon=69.2401))[0], **env_.deps(bot))
-    await on_web_app_data(make_message(2, good(ref="second02", address_type="text", address_text="Registon 1",
-                                                lat=None, lon=None))[0], **env_.deps(bot))
+    await on_web_app_data(make_message(1, good(ref="rej00001", **NO_LOC))[0], **env_.deps(bot))
+    await on_web_app_data(make_message(2, good(ref="second02", address_details="Registon 1"))[0], **env_.deps(bot))
     await env_.db.set_meta("backup_last_sig", "1:1:0")
     return env_
 

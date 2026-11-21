@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS orders (
     client_ref    TEXT,                      -- Mini App yozuvi belgisi (natijali havola uchun)
     admin_msg_id  INTEGER,                   -- chek xabari ID si (bekor qilinganda unga javob yoziladi)
     admin_chat_id INTEGER,                   -- chek qaysi chatda (guruh yoki admin); NULL - eski chek, ADMIN_ID da
+    distance_km   REAL,                      -- restorandan yo'l masofasi (0.1 km); NULL - eski buyurtma
+    distance_approx INTEGER NOT NULL DEFAULT 0, -- 1 = taxminiy masofa (ORS emas, to'g'ri chiziq * koeffitsient)
     phone_verified INTEGER NOT NULL DEFAULT 0 -- 1 = telefon Telegram kontakti bilan bir xil
 );
 
@@ -121,6 +123,8 @@ CREATE TABLE IF NOT EXISTS orders (
     client_ref      TEXT,
     admin_msg_id    BIGINT,
     admin_chat_id   BIGINT,
+    distance_km     DOUBLE PRECISION,
+    distance_approx INTEGER NOT NULL DEFAULT 0,
     phone_verified  INTEGER NOT NULL DEFAULT 0
 );
 
@@ -186,6 +190,8 @@ MIGRATIONS = {
         "admin_msg_id": "INTEGER",
         "admin_chat_id": "INTEGER",
         "phone_verified": "INTEGER NOT NULL DEFAULT 0",
+        "distance_km": "REAL",
+        "distance_approx": "INTEGER NOT NULL DEFAULT 0",
     },
     # users jadvali boshqa versiyada lang siz yaratilgan bo'lsa ham ustun qo'shiladi
     "users": {
@@ -196,7 +202,8 @@ MIGRATIONS = {
 # Postgres uchun o'sha ustunlar (ADD COLUMN IF NOT EXISTS) - turlari PG_SCHEMA bilan bir xil
 PG_MIGRATIONS = {
     "orders": {**MIGRATIONS["orders"], "items_total": "BIGINT", "delivery_fee": "BIGINT", "admin_msg_id": "BIGINT",
-               "admin_chat_id": "BIGINT"},
+               "admin_chat_id": "BIGINT",
+               "distance_km": "DOUBLE PRECISION"},
     "users": dict(MIGRATIONS["users"]),
 }
 
@@ -206,6 +213,7 @@ TABLES: dict[str, tuple[str, ...]] = {
         "id", "user_id", "username", "customer_name", "phone", "address_type", "address_text", "lat", "lon",
         "total", "items_total", "delivery_fee", "created_at", "notified", "address_details", "comment",
         "status", "cancelled_at", "client_ref", "admin_msg_id", "phone_verified", "admin_chat_id",
+        "distance_km", "distance_approx",
     ),
     "order_items": ("id", "order_id", "item_id", "name", "price", "qty", "line_total"),
     "user_phones": ("user_id", "phone", "updated_at"),
@@ -658,8 +666,8 @@ class Database:
             INSERT INTO orders (user_id, username, customer_name, phone, address_type,
                                 address_text, lat, lon, total, created_at,
                                 address_details, comment, items_total, delivery_fee,
-                                client_ref, phone_verified)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                client_ref, phone_verified, distance_km, distance_approx)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -678,6 +686,8 @@ class Database:
                 order.delivery_fee,
                 client_ref,
                 1 if phone_verified else 0,
+                order.distance_km,
+                1 if order.distance_approx else 0,
             ),
             """
             INSERT INTO order_items (order_id, item_id, name, price, qty, line_total)

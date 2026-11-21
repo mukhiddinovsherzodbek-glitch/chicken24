@@ -26,9 +26,10 @@
   const ORDER_STATUSES = ['pending', 'ok', 'rejected', 'cancelled', 'lost'];
   // Yetkazish hududi. ASOSIY sozlama bot/config.py da (DELIVERY_*), bu yerda uning nusxasi:
   // Mini App faqat mijozni darhol ogohlantiradi, haqiqiy tekshiruv botda.
-  const DELIVERY_AREA = { name: 'Samarqand shahri', lat: 39.6542, lon: 66.9597, radiusKm: 12 };
   // Biznes qoidalari. ASOSIY sozlama bot/config.py da (DELIVERY_FEE, OPEN_FROM, CLOSE_AT, UTC_OFFSET_HOURS).
   // Narx va ish vaqti bot tomonida qayta tekshiriladi; bu yerda faqat mijozga ko'rsatish uchun.
+  // deliveryFee - faqat ko'rsatish uchun zaxira ("10 000 so'mdan"), agar /api/config yuklanmasa.
+  // Haqiqiy yetkazish narxi masofaga qarab FAQAT serverda hisoblanadi (/api/delivery-quote, buyurtmada qayta).
   const BUSINESS = { deliveryFee: 10000, openFrom: '10:00', closeAt: '03:00', utcOffsetHours: 5 };
   // Bot bilan bir xil: shu oraliqda qayta yuborilgan buyurtmani bot rad etadi
   const ORDER_COOLDOWN_MS = 30 * 1000;
@@ -58,7 +59,7 @@
   function T(key, params) {
     const dict = I18N[LANG] || {};
     let text = dict[key] !== undefined ? dict[key] : (I18N.uz && I18N.uz[key] !== undefined ? I18N.uz[key] : key);
-    const values = Object.assign({ area: (I18N[LANG] || {})['area.name'] || '' }, params || {});
+    const values = Object.assign({}, params || {});
     return String(text).replace(/\{(\w+)\}/g, (m, name) => (values[name] !== undefined ? String(values[name]) : m));
   }
 
@@ -145,7 +146,6 @@
     checkout: {
       name: '',
       phone: '', // faqat 9 ta raqam, +998 siz
-      address: '',
       details: '', // uy / qavat / xonadon (ixtiyoriy, ikkala manzil turida ham)
       comment: '', // izoh (ixtiyoriy)
       loc: null, // { lat, lon }
@@ -157,6 +157,8 @@
       retryRef: '', // javobi noma'lum qolgan buyurtma ref'i - qayta yuborilsa o'sha ref ishlatiladi
     },
     lastRejection: null, // { ref, code } - shu ochilishda HTTP orqali rad etilgan buyurtma (savat ustida sabab)
+    tariff: null, // /api/config: { base_km, base_fee, extra_per_km } - faqat ko'rsatish uchun
+    quote: null,  // /api/delivery-quote: { status: 'loading'|'ok'|'error'|'none', key, km, fee, approx }
   };
 
   // ---------------------------------------------------------------- yordamchilar
@@ -342,9 +344,127 @@
     return total;
   }
 
-  /** Taomlar + yetkazish (bo'sh savatda 0). Bot ham xuddi shunday hisoblaydi. */
+  /** Yetkazish narxi serverdan olingan bo'lsa (quote ok) - taomlar + yetkazish; bo'lmasa null (server hisoblaydi). */
   function grandTotal() {
-    return state.cart.size ? cartTotal() + BUSINESS.deliveryFee : 0;
+    if (!state.cart.size) return 0;
+    const q = state.quote;
+    return q && q.status === 'ok' ? cartTotal() + q.fee : null;
+  }
+
+  /** Boshlang'ich yetkazish narxi (faqat "...dan" deb ko'rsatish uchun): /api/config, bo'lmasa zaxira. */
+  function baseDeliveryFee() {
+    return state.tariff ? state.tariff.base_fee : BUSINESS.deliveryFee;
+  }
+
+  function deliveryLabelText() {
+    const q = state.quote;
+    if (q && q.status === 'ok') return T(q.approx ? 'sum.delivery_km_approx' : 'sum.delivery_km', { km: q.km.toFixed(1) });
+    return T('sum.delivery');
+  }
+
+  function deliveryValueText() {
+    const q = state.quote;
+    if (q && q.status === 'loading') return T('quote.loading');
+    if (q && q.status === 'ok') return fmtPrice(q.fee);
+    return T('quote.from', { sum: fmtPrice(baseDeliveryFee()) });
+  }
+
+  function totalText() {
+    const total = grandTotal();
+    if (total !== null) return fmtPrice(total);
+    return T('sum.total_from', { sum: fmtPrice(cartTotal() + baseDeliveryFee()) });
+  }
+
+  /** Savatdagi "Yetkazish" va "Jami" qatorlarini yangilaydi (narx kelganda yoki savat o'zgarganda). */
+  function updateSums() {
+    const $label = document.getElementById('deliveryLabel');
+    if ($label) $label.textContent = deliveryLabelText();
+    const $value = document.getElementById('deliveryValue');
+    if ($value) {
+      $value.textContent = deliveryValueText();
+      $value.classList.toggle('muted', !(state.quote && state.quote.status === 'ok'));
+    }
+    const $total = document.getElementById('cartTotal');
+    if ($total) $total.textContent = totalText();
+    const $tariff = document.getElementById('tariffNote');
+    if ($tariff) {
+      const tf = state.tariff;
+      $tariff.hidden = !tf;
+      $tariff.textContent = tf
+        ? T('delivery.tariff', { km: tf.base_km, fee: fmtPrice(tf.base_fee), extra: fmtPrice(tf.extra_per_km) })
+        : '';
+    }
+    validateForm();
+  }
+
+  // ---------------------------------------------------------------- yetkazish narxi (serverdan)
+  /*
+   * Narx formulasi Mini App'da YO'Q: tarif (/api/config) faqat matn uchun, narx esa /api/delivery-quote dan
+   * (yo'l masofasi bo'yicha, server hisoblaydi). initData bo'lmasa (eski klaviatura tugmasi) yoki so'rov
+   * muvaffaqiyatsiz bo'lsa - "10 000 so'mdan, masofaga qarab" ko'rsatiladi, yakuniy summani bot hisoblaydi.
+   */
+  const QUOTE_TIMEOUT_MS = 15000;
+
+  function quoteEnabled() {
+    return !!API_BASE && inTelegram && !!(tg && typeof tg.initData === 'string' && tg.initData);
+  }
+
+  async function loadTariff() {
+    if (!API_BASE) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/config`, { credentials: 'omit', mode: 'cors' });
+      if (!resp.ok) return;
+      const d = await resp.json();
+      const ints = ['base_km', 'base_fee', 'extra_per_km'].every((k) => Number.isInteger(d[k]) && d[k] >= 0);
+      if (!ints) return;
+      state.tariff = { base_km: d.base_km, base_fee: d.base_fee, extra_per_km: d.extra_per_km };
+      updateSums();
+    } catch (e) { /* jim - "...dan" zaxira matni ishlaydi */ }
+  }
+
+  async function requestQuote() {
+    const co = state.checkout;
+    if (co.locStatus !== 'ok' || !co.loc) {
+      state.quote = null;
+      updateSums();
+      return;
+    }
+    if (!quoteEnabled()) {
+      state.quote = { status: 'none' };
+      updateSums();
+      return;
+    }
+    const key = `${co.loc.lat},${co.loc.lon}`;
+    const cur = state.quote;
+    if (cur && cur.key === key && (cur.status === 'ok' || cur.status === 'loading')) return;
+    state.quote = { status: 'loading', key };
+    updateSums();
+    let next = { status: 'error', key };
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), QUOTE_TIMEOUT_MS) : null;
+    try {
+      const url = `${API_BASE}/api/delivery-quote?lat=${encodeURIComponent(co.loc.lat)}&lon=${encodeURIComponent(co.loc.lon)}`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `tma ${tg.initData}` },
+        cache: 'no-store',
+        credentials: 'omit',
+        mode: 'cors',
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      if (resp.ok) {
+        const d = await resp.json();
+        if (Number.isFinite(d.km) && d.km >= 0 && Number.isInteger(d.fee) && d.fee >= 0) {
+          next = { status: 'ok', key, km: d.km, fee: d.fee, approx: d.approx === true };
+        }
+      }
+    } catch (e) {
+      /* tarmoq / timeout - "...dan" ko'rsatiladi, narxni bot hisoblaydi */
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (!state.quote || state.quote.key !== key) return; // lokatsiya o'zgargan - eski javob
+    state.quote = next;
+    updateSums();
   }
 
   function setQty(id, qty) {
@@ -391,7 +511,6 @@
       ref,
       name: co.name,
       phone: co.phone,
-      address: co.address,
       details: co.details,
       comment: co.comment,
       loc: co.locStatus === 'ok' && co.loc ? co.loc : null,
@@ -406,12 +525,10 @@
     const co = state.checkout;
     co.name = str(d.name, LIMITS.nameMax);
     co.phone = typeof d.phone === 'string' && /^\d{0,9}$/.test(d.phone) ? d.phone : '';
-    co.address = str(d.address, LIMITS.addressMax);
     co.details = str(d.details, LIMITS.detailsMax);
     co.comment = str(d.comment, LIMITS.commentMax);
     const loc = d.loc;
-    if (!co.address && loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon)
-        && distanceKm(DELIVERY_AREA.lat, DELIVERY_AREA.lon, loc.lat, loc.lon) <= DELIVERY_AREA.radiusKm) {
+    if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon) && Math.abs(loc.lat) <= 90 && Math.abs(loc.lon) <= 180) {
       co.loc = { lat: loc.lat, lon: loc.lon };
       co.locStatus = 'ok';
     }
@@ -425,7 +542,7 @@
     storageRemove(STORAGE.draft);
     storageRemove(STORAGE.legacyProfile);
     Object.assign(state.checkout, {
-      name: '', phone: '', address: '', details: '', comment: '',
+      name: '', phone: '', details: '', comment: '',
       loc: null, locStatus: 'idle', locError: '', locCanOpenSettings: false,
       touched: { name: false, phone: false },
     });
@@ -1065,7 +1182,8 @@
       h('h2', { class: 'card-title' }, T('cart.your')),
       h('div', { id: 'cartLines' }),
       h('div', { class: 'sum-row' }, h('span', null, T('sum.items')), h('span', { id: 'itemsTotal' })),
-      h('div', { class: 'sum-row' }, h('span', null, T('sum.delivery')), h('span', null, fmtPrice(BUSINESS.deliveryFee))),
+      h('div', { class: 'sum-row' }, h('span', { id: 'deliveryLabel' }, deliveryLabelText()),
+        h('span', { id: 'deliveryValue' }, deliveryValueText())),
       h('div', { class: 'total-row' }, h('span', null, T('sum.total')), h('b', { id: 'cartTotal' })),
       h('p', { class: 'payment-note' }, T('pay.note')));
 
@@ -1103,18 +1221,7 @@
             T('btn.tg_phone'))
           : null));
 
-    // d) Manzil
-    const addrInput = h('textarea', {
-      id: 'addrInput', class: 'input textarea', rows: 3, maxlength: LIMITS.addressMax,
-      placeholder: T('form.addr_ph'), value: co.address,
-    });
-    addrInput.addEventListener('input', () => {
-      co.address = addrInput.value;
-      updateAddressUI();
-      validateForm();
-    });
-
-    // Uy / qavat / xonadon va izoh - joriy lokatsiya tanlansa ham yoziladi
+    // d) Manzil: joriy lokatsiya SHART (yetkazish narxi yo'l masofasidan); uy/qavat/mo'ljal - matnli izoh
     const detailsInput = h('input', {
       id: 'detailsInput', class: 'input', type: 'text', maxlength: LIMITS.detailsMax,
       placeholder: T('form.details_ph'), value: co.details,
@@ -1128,16 +1235,11 @@
 
     const addressSection = h('section', { class: 'card' },
       h('h2', { class: 'card-title' }, T('form.address_title')),
-      h('p', { class: 'field-hint area-note' }, T('form.area_note')),
+      h('p', { class: 'field-hint area-note' }, T('form.loc_note')),
       h('button', { id: 'locBtn', class: 'btn btn-secondary btn-block', type: 'button', dataset: { action: 'loc-request' } },
         T('btn.send_loc')),
       h('div', { id: 'locStatus', class: 'loc-status', 'aria-live': 'polite' }),
-      h('div', { class: 'divider' }, T('form.or')),
-      h('div', { class: 'field' },
-        h('label', { class: 'label', for: 'addrInput' }, T('form.addr_label'),
-          h('span', { class: 'counter', id: 'addrCounter' })),
-        addrInput,
-        h('p', { class: 'field-hint', id: 'addrHint', hidden: true })),
+      h('p', { class: 'field-hint', id: 'tariffNote', hidden: true }),
       h('div', { class: 'field' },
         h('label', { class: 'label', for: 'detailsInput' }, T('form.details')),
         detailsInput),
@@ -1177,9 +1279,7 @@
     $lines.replaceChildren(...rows);
     const $items = document.getElementById('itemsTotal');
     if ($items) $items.textContent = fmtPrice(cartTotal());
-    const $total = document.getElementById('cartTotal');
-    if ($total) $total.textContent = fmtPrice(grandTotal());
-    validateForm();
+    updateSums();
   }
 
   // ---------------------------------------------------------------- telefon maydoni
@@ -1301,31 +1401,10 @@
     const co = state.checkout;
     const $btn = document.getElementById('locBtn');
     const $status = document.getElementById('locStatus');
-    const $addr = document.getElementById('addrInput');
-    const $hint = document.getElementById('addrHint');
-    const $counter = document.getElementById('addrCounter');
-    if (!$btn || !$status || !$addr) return;
+    if (!$btn || !$status) return;
 
-    const hasText = co.address.length > 0;
-    const locActive = co.locStatus === 'ok' || co.locStatus === 'loading';
-
-    // Qo'lda yozilgan bo'lsa - joriy manzil tugmasi bloklanadi
     $btn.hidden = co.locStatus === 'ok';
-    $btn.disabled = hasText || co.locStatus === 'loading';
-    // Joriy manzil olingan bo'lsa - qo'lda yozish bloklanadi
-    $addr.disabled = locActive;
-    $addr.placeholder = locActive ? T('loc.ph_active') : T('form.addr_ph');
-
-    $counter.textContent = `${charLen(co.address)}/${LIMITS.addressMax}`;
-    if (hasText && !locActive) {
-      $hint.hidden = false;
-      $hint.textContent = T('loc.hint_clear');
-    } else if (co.locStatus === 'ok') {
-      $hint.hidden = false;
-      $hint.textContent = T('loc.hint_cancel');
-    } else {
-      $hint.hidden = true;
-    }
+    $btn.disabled = co.locStatus === 'loading';
 
     let box = null;
     if (co.locStatus === 'loading') {
@@ -1359,24 +1438,11 @@
       onLocationError(T('loc.bad'));
       return;
     }
-    // Yetkazish hududi: shahardan tashqaridagi lokatsiya qabul qilinmaydi (bot ham tekshiradi)
-    const km = distanceKm(DELIVERY_AREA.lat, DELIVERY_AREA.lon, lat, lon);
-    if (km > DELIVERY_AREA.radiusKm) {
-      onLocationError(T('loc.out_of_area', { km: Math.round(km) }));
-      return;
-    }
+    // Hudud cheklovi yo'q - yetkazish narxi masofaga qarab serverda hisoblanadi
     state.checkout.loc = { lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 };
     setLocation('ok', { loc: state.checkout.loc });
     haptic('success');
-  }
-
-  /** Ikki nuqta orasidagi masofa, km (haversine; botdagi bilan bir xil formula). */
-  function distanceKm(lat1, lon1, lat2, lon2) {
-    const rad = (d) => (d * Math.PI) / 180;
-    const dp = rad(lat2 - lat1);
-    const dl = rad(lon2 - lon1);
-    const a = Math.sin(dp / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dl / 2) ** 2;
-    return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)));
+    requestQuote();
   }
 
   function onLocationError(message, canOpenSettings) {
@@ -1388,7 +1454,7 @@
   let locTimer = 0;
   function requestLocation() {
     const co = state.checkout;
-    if (co.address.length > 0 || co.locStatus === 'loading') return;
+    if (co.locStatus === 'loading') return;
     setLocation('loading');
     clearTimeout(locTimer);
     locTimer = setTimeout(() => onLocationError(T('loc.timeout')), 25000);
@@ -1445,6 +1511,8 @@
   function cancelLocation() {
     clearTimeout(locTimer);
     setLocation('idle');
+    state.quote = null;
+    updateSums();
   }
 
   function openLocationSettings() {
@@ -1460,10 +1528,8 @@
     const nameLen = charLen(name);
     const nameOk = nameLen >= LIMITS.nameMin && nameLen <= LIMITS.nameMax;
     const phoneOk = /^\d{9}$/.test(co.phone);
-    const addressText = co.address.trim();
-    const addressOk = co.locStatus === 'ok' && !!co.loc
-      ? true
-      : addressText.length > 0 && charLen(addressText) <= LIMITS.addressMax;
+    const addressText = '';
+    const addressOk = co.locStatus === 'ok' && !!co.loc; // joriy lokatsiya shart
     const cartOk = state.cart.size > 0;
     const open = isOpenNow(); // yopiq vaqtda savat ishlaydi, faqat yuborish o'chiriladi
     const ok = nameOk && phoneOk && addressOk && cartOk && open;
@@ -1496,7 +1562,7 @@
       if (!phoneOk) missing.push(T('hint.f_phone'));
       if (!addressOk) missing.push(T('hint.f_address'));
       if (!open) $hint.textContent = T('hint.closed', { open: BUSINESS.openFrom });
-      else $hint.textContent = missing.length ? T('hint.fill', { list: missing.join(', ') }) : T('hint.total', { sum: fmtPrice(grandTotal()) });
+      else $hint.textContent = missing.length ? T('hint.fill', { list: missing.join(', ') }) : T('hint.total', { sum: totalText() });
     }
     return { ok, name, addressText };
   }
@@ -1626,8 +1692,8 @@
       lang: LANG, // til tanlamagan (eski) mijozga bot shu tilda javob beradi va uni saqlaydi
       name: v.name,
       phone: '+998' + co.phone,
-      address_type: useLocation ? 'location' : 'text',
-      address_text: useLocation ? '' : v.addressText,
+      address_type: 'location', // yangi buyurtmada joriy lokatsiya shart (narx masofadan)
+      address_text: '',
       lat: useLocation ? co.loc.lat : null,
       lon: useLocation ? co.loc.lon : null,
       address_details: co.details.trim(),
@@ -1657,7 +1723,8 @@
       }),
       // Summalar snapshot'i (bot ham xuddi shunday hisoblaydi): keyin menyu narxi o'zgarsa ham o'zgarmaydi
       itemsTotal: cartTotal(),
-      deliveryFee: BUSINESS.deliveryFee,
+      // Serverdan olingan narx (bo'lmasa noma'lum - tarixda ko'rsatilmaydi; yakuniy summani bot hisoblaydi)
+      deliveryFee: state.quote && state.quote.status === 'ok' ? state.quote.fee : null,
       total: grandTotal(),
       payment: 'naqd',
       addressType: payload.address_type,
@@ -1846,6 +1913,8 @@
     const removed = pruneCart();
     loadDraft();
     applyBotResult();
+    loadTariff(); // tarif matni (narx emas) - fonda
+    requestQuote(); // qoralamadan lokatsiya tiklangan bo'lsa - narxni serverdan
     // Natija indamasdan qo'llangan - ilova odatdagidek menyudan ochiladi
     state.menuStack = null;
     state.tab = 'menu';

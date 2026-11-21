@@ -113,6 +113,10 @@ def button_query(markup) -> dict[str, list[str]]:
     return parse_qs(urlparse(order_button(markup).web_app.url).query)
 
 
+# Lokatsiyasiz (matnli manzil) - yangi buyurtmada rad etiladi (sabab: location). Rad etish yo'lini sinash uchun.
+NO_LOC = dict(address_type="text", address_text="Registon 1", lat=None, lon=None)
+
+
 def good(**over):
     data = {
         "ref": "abc123xyz",
@@ -201,7 +205,7 @@ def test_customer_text_has_number_items_total():
     assert "Klassik burger × 2 = 50 000 so'm" in text
     assert "Cheese &lt;b&gt; × 1 = 30 000 so'm" in text  # HTML tozalangan
     assert "Taomlar: 80 000 so'm" in text
-    assert "Yetkazish: 10 000 so'm" in text
+    assert "Yetkazish (" in text and "taxminiy): 10 000 so'm" in text  # masofa + narx (ORS kaliti yo'q)
     assert "Jami: 90 000 so'm" in text
     assert "To'lov: naqd (kuryerga)" in text
 
@@ -350,12 +354,13 @@ def test_unnotified_order_is_resent_once():
     assert [s[0] for s in sent] == ["message", "location"]
 
 
-def test_location_outside_samarkand_rejected_by_bot():
+def test_order_without_location_rejected_by_bot():
+    """Hudud cheklovi yo'q, lekin yangi buyurtmada joriy lokatsiya shart (narx masofadan)."""
     async def scenario():
         env = Env()
         await env.db.connect()
         bot = FakeBot()
-        msg, answers = make_message(10, good(lat=41.2995, lon=69.2401))  # Toshkent
+        msg, answers = make_message(10, good(**NO_LOC))
         await on_web_app_data(msg, **env.deps(bot))
         cur = await env.db.conn.execute("SELECT COUNT(*) FROM orders")
         count = (await cur.fetchone())[0]
@@ -364,8 +369,8 @@ def test_location_outside_samarkand_rejected_by_bot():
 
     answers, count, sent = run(scenario())
     text, markup = confirmation(answers)
-    assert "qabul qilinmadi" in text and "Samarqand shahri ichiga yetkazamiz" in text
-    assert button_query(markup)["r"] == ["area"]
+    assert "qabul qilinmadi" in text and "lokatsiya" in text and "Samarqand" not in text
+    assert button_query(markup)["r"] == ["location"]
     assert count == 0  # bazaga yozilmadi
     assert not any("yangi buyurtma" in s[2] for s in sent if s[0] == "message")  # admin'ga chek ketmadi
 

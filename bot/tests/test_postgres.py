@@ -36,7 +36,7 @@ from handlers import (  # noqa: E402
     on_web_app_data,
     resend_unnotified,
 )
-from test_flow import Env, FakeBot, FakeCallback, good, make_message  # noqa: E402
+from test_flow import Env, FakeBot, FakeCallback, good, make_message, NO_LOC  # noqa: E402
 
 business.is_open_now = lambda: True
 
@@ -79,11 +79,11 @@ async def scenario(env: Env) -> dict:
     await db.save_verified_phone(BIG_USER, "+998901234567", now)
     await on_web_app_data(make_message(BIG_USER, good())[0], **env.deps(bot), lang="uz")              # #1 ok
     env.limiter.release(BIG_USER)
-    await on_web_app_data(make_message(BIG_USER, good(ref="rej00001", lat=41.2995, lon=69.2401))[0],
+    await on_web_app_data(make_message(BIG_USER, good(ref="rej00001", **NO_LOC))[0],
                           **env.deps(bot), lang="uz")                                                    # rad (hudud)
     out["url_after_rej"] = await build_webapp_url(env.config, db, BIG_USER, "ru")
-    await on_web_app_data(make_message(2, good(ref="cx000002", address_type="text", address_text="Registon 1",
-                                                lat=None, lon=None, comment="Domofon 5"))[0],
+    await on_web_app_data(make_message(2, good(ref="cx000002", address_details="Registon 1",
+                                                comment="Domofon 5"))[0],
                           **env.deps(bot), lang="ru")                                                    # #2
     cb = FakeCallback(2, "cancel:2")
     await on_cancel_order(cb, bot, env.config, db, lang="ru")
@@ -315,7 +315,7 @@ def test_migration_idempotent_and_ids_continue():
         await on_web_app_data(make_message(BIG_USER, good())[0], **env.deps(bot), lang="ru")
         await on_web_app_data(make_message(2, good(ref="b2"))[0], **env.deps(bot), lang="uz")
         env.limiter.release(2)
-        await on_web_app_data(make_message(2, good(ref="rejref02", lat=41.2995, lon=69.2401))[0], **env.deps(bot))
+        await on_web_app_data(make_message(2, good(ref="rejref02", **NO_LOC))[0], **env.deps(bot))
         await env.db.set_meta("backup_last_sig", "2:2:0")
         expected = await env.db.export_tables()
         await env.db.close()
