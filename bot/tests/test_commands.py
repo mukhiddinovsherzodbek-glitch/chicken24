@@ -53,8 +53,12 @@ ADMIN_NAMES = ["start", "til", "excel", "excel_bugun", "excel_hafta", "excel_oy"
 def test_customer_menu_start_and_til_admin_full_list():
     bot = MenuBot()
     asyncio.run(commands.apply_commands(bot, 999))
-    assert bot.menus["default"] == ["start", "til"]
+    # Mijozlar - faqat shaxsiy chatlarda; guruhlarda bo'sh; Default o'rnatilmaydi (tozalangan - bo'sh)
+    assert bot.menus["all_private_chats"] == ["start", "til"]
+    assert bot.menus["all_group_chats"] == []
+    assert "default" not in bot.menus
     assert bot.menus["chat:999"] == ADMIN_NAMES
+    assert "guruh_id" not in bot.menus["chat:999"], "/guruh_id menyuda ko'rinmaydi"
     # Eski buyruqlar barcha umumiy scope'lar va tillarda tozalangan
     scopes = {s for s, _ in bot.deleted}
     assert {"default", "all_private_chats", "all_group_chats", "all_chat_administrators", "chat:999"} <= scopes
@@ -78,7 +82,7 @@ def test_command_names_valid_and_descriptions_uzbek():
 def test_admin_scope_error_does_not_crash():
     bot = MenuBot(fail_admin_scope=True)
     asyncio.run(commands.apply_commands(bot, 999))  # xato tashlamasligi kerak
-    assert bot.menus == {"default": ["start", "til"]}
+    assert bot.menus == {"all_private_chats": ["start", "til"], "all_group_chats": []}
 
 
 # ------------------------------------------------------------ admin buyruqlari himoyasi

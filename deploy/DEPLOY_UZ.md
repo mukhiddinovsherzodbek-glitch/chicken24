@@ -599,3 +599,49 @@ Testlar: `bot/tests/test_security.py` (har bir himoya uchun) va qolgan `tests/te
   cd bot
   Get-ChildItem tests\test_*.py | ForEach-Object { .\venv\Scripts\python.exe $_.FullName | Select-Object -Last 1 }
   ```
+
+---
+
+## G. Buyurtmalar guruhi (cheklar xodimlar guruhiga)
+
+Sozlansa, buyurtma cheklari (yangi buyurtma, lokatsiya, "mijoz bekor qildi") admin'ning shaxsiy chatiga emas,
+**Telegram guruhiga** keladi — oshxona/kuryerlar birga ko'radi. Admin buyruqlari (`/excel`, `/hisobot`, `/backup`)
+baribir **faqat admin'ning bot bilan shaxsiy chatida** ishlaydi.
+
+> ⚠️ **Guruh a'zolari mijozlarning ismi, telefoni va manzilini ko'radi.** Guruhga faqat ishonchli xodimlarni qo'shing,
+> guruhni yopiq (private) qiling, taklif havolasini tarqatmang. Xodim ishdan ketsa — guruhdan chiqaring.
+
+### G-1. Sozlash
+1. Telegram'da yangi guruh oching (masalan, "Chicken24 buyurtmalar") va xodimlarni qo'shing.
+2. Botni guruhga **admin akkauntidan (ADMIN_ID)** qo'shing. Boshqa odam qo'shsa, bot darhol chiqib ketadi.
+3. Guruhda admin akkauntidan yozing: `/guruh_id` → bot guruh ID sini yuboradi (manfiy son, masalan `-1001234567890`).
+   Bu buyruq faqat guruhda va faqat admin uchun ishlaydi; boshqalarga bot javob bermaydi.
+4. Render → `chicken24-bot` → **Environment** → **Add Environment Variable**:
+   - `ORDERS_CHAT_ID` = 3-qadamdagi son (minus belgisi bilan)
+   - (ixtiyoriy) `ORDERS_ALSO_ADMIN` = `1` — chek guruhdan tashqari admin'ga ham alohida kelsin
+   → **Save Changes** (bot qayta ishga tushadi, 1-3 daqiqa).
+5. Logda `Ishga tushdi: ...` qatori chiqqach sinang (G-2).
+
+### G-2. Sinash
+1. Mini App'dan sinov buyurtma bering → chek va lokatsiya **guruhga** keladi (admin'ga emas).
+2. 5 daqiqa ichida "Bekor qilish" ni bosing → guruhda chekka javob: "Mijoz buyurtma #N ni bekor qildi".
+3. Guruhda `/excel`, `/hisobot`, `/backup`, `/start` yozing (admin akkauntidan ham) → bot **javob bermaydi**.
+   Shaxsiy chatda admin uchun `/hisobot` ishlaydi.
+4. Boshqa akkaunt botni boshqa guruhga qo'shsa → bot o'zi chiqib ketadi.
+
+### G-3. Muammo bo'lsa
+- **Chek admin'ga keldi va "⚠️ Guruhga yuborib bo'lmadi" yozuvi** — bot guruhdan chiqarilgan yoki yozish huquqi yo'q,
+  yoki `ORDERS_CHAT_ID` noto'g'ri. Buyurtma yo'qolmaydi (shaxsiy chatga zaxira sifatida keladi). Botni guruhga
+  admin akkauntidan qayta qo'shing, `/guruh_id` bilan ID ni tekshiring.
+- **"Guruh supergruppaga ko'chgan. Yangi ID: ..."** — Telegram guruhni supergruppaga aylantirganda ID o'zgaradi.
+  Xabardagi yangi ID ni Render'da `ORDERS_CHAT_ID` ga yozing.
+- Guruhga ham, admin'ga ham yetmasa — buyurtma bazada `notified=0` qoladi va har 2 daqiqada (yoki bot qayta
+  yonganda) qayta yuboriladi.
+- Admin botni **boshqa** guruhga qo'shsa (ORDERS_CHAT_ID boshqa) — bot chiqib ketadi va shaxsiy chatda o'sha
+  guruh ID sini yozadi (shu guruhni ishlatmoqchi bo'lsangiz — ORDERS_CHAT_ID ni almashtiring).
+- Loglarda chat ID lar yashirilgan: `-100*******890`.
+
+### G-4. Orqaga qaytish
+Render → Environment → `ORDERS_CHAT_ID` ni **o'chiring** → Save Changes. Cheklar yana faqat admin'ning shaxsiy
+chatiga keladi (kod o'zgarmaydi). Guruhga yuborilgan eski cheklarni bekor qilish xabari baribir o'sha guruhga boradi
+(guruh ishlamasa — admin'ga). Botni guruhdan chiqarib yuborishingiz mumkin.

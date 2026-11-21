@@ -119,6 +119,10 @@ class Config:
     port: int = DEFAULT_PORT
     # O'z-o'ziga ping manzili (<ochiq manzil>/health). None - o'chiq (lokal kompyuter)
     self_ping_url: str | None = field(default=None, repr=False)
+    # Buyurtma cheklari keladigan guruh (manfiy chat ID). None - cheklar ADMIN_ID ga (avvalgidek)
+    orders_chat_id: int | None = field(default=None, repr=False)
+    # True - chek guruhdan tashqari admin'ning shaxsiy chatiga ham alohida yuboriladi
+    orders_also_admin: bool = False
 
     @property
     def use_webhook(self) -> bool:
@@ -199,7 +203,27 @@ def load_config() -> Config:
         webhook_secret=webhook_secret,
         port=_port(),
         self_ping_url=_self_ping_url(),
+        orders_chat_id=_orders_chat_id(),
+        orders_also_admin=_flag("ORDERS_ALSO_ADMIN"),
     )
+
+
+def _orders_chat_id() -> int | None:
+    """ORDERS_CHAT_ID: buyurtma cheklari guruhi (manfiy son, masalan -1001234567890). Bo'sh - ADMIN_ID ga."""
+    raw = os.getenv("ORDERS_CHAT_ID", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ConfigError("ORDERS_CHAT_ID butun son bo'lishi kerak (guruh ID si manfiy, masalan -1001234567890).") from None
+    if value >= 0:
+        raise ConfigError("ORDERS_CHAT_ID guruh ID si - manfiy son bo'lishi kerak (guruhda /guruh_id yozing).")
+    return value
+
+
+def _flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "ha")
 
 
 def _self_ping_url() -> str | None:

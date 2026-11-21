@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS orders (
     status        TEXT    NOT NULL DEFAULT 'new', -- new | cancelled
     cancelled_at  TEXT,                      -- UTC, ISO 8601
     client_ref    TEXT,                      -- Mini App yozuvi belgisi (natijali havola uchun)
-    admin_msg_id  INTEGER,                   -- admin'dagi chek xabari (bekor qilinganda javob berish uchun)
+    admin_msg_id  INTEGER,                   -- chek xabari ID si (bekor qilinganda unga javob yoziladi)
+    admin_chat_id INTEGER,                   -- chek qaysi chatda (guruh yoki admin); NULL - eski chek, ADMIN_ID da
     phone_verified INTEGER NOT NULL DEFAULT 0 -- 1 = telefon Telegram kontakti bilan bir xil
 );
 
@@ -119,6 +120,7 @@ CREATE TABLE IF NOT EXISTS orders (
     cancelled_at    TEXT,
     client_ref      TEXT,
     admin_msg_id    BIGINT,
+    admin_chat_id   BIGINT,
     phone_verified  INTEGER NOT NULL DEFAULT 0
 );
 
@@ -182,6 +184,7 @@ MIGRATIONS = {
         "cancelled_at": "TEXT",
         "client_ref": "TEXT",
         "admin_msg_id": "INTEGER",
+        "admin_chat_id": "INTEGER",
         "phone_verified": "INTEGER NOT NULL DEFAULT 0",
     },
     # users jadvali boshqa versiyada lang siz yaratilgan bo'lsa ham ustun qo'shiladi
@@ -192,7 +195,8 @@ MIGRATIONS = {
 }
 # Postgres uchun o'sha ustunlar (ADD COLUMN IF NOT EXISTS) - turlari PG_SCHEMA bilan bir xil
 PG_MIGRATIONS = {
-    "orders": {**MIGRATIONS["orders"], "items_total": "BIGINT", "delivery_fee": "BIGINT", "admin_msg_id": "BIGINT"},
+    "orders": {**MIGRATIONS["orders"], "items_total": "BIGINT", "delivery_fee": "BIGINT", "admin_msg_id": "BIGINT",
+               "admin_chat_id": "BIGINT"},
     "users": dict(MIGRATIONS["users"]),
 }
 
@@ -201,7 +205,7 @@ TABLES: dict[str, tuple[str, ...]] = {
     "orders": (
         "id", "user_id", "username", "customer_name", "phone", "address_type", "address_text", "lat", "lon",
         "total", "items_total", "delivery_fee", "created_at", "notified", "address_details", "comment",
-        "status", "cancelled_at", "client_ref", "admin_msg_id", "phone_verified",
+        "status", "cancelled_at", "client_ref", "admin_msg_id", "phone_verified", "admin_chat_id",
     ),
     "order_items": ("id", "order_id", "item_id", "name", "price", "qty", "line_total"),
     "user_phones": ("user_id", "phone", "updated_at"),
@@ -684,10 +688,13 @@ class Database:
         self.note_unnotified()
         return order_id
 
-    async def mark_notified(self, order_id: int, admin_msg_id: int | None = None) -> None:
+    async def mark_notified(self, order_id: int, admin_msg_id: int | None = None,
+                            admin_chat_id: int | None = None) -> None:
+        """Chek yetib bordi: xabar ID si va qaysi chatda (guruh yoki admin) ekani saqlanadi."""
         await self._db.execute(
-            "UPDATE orders SET notified = 1, admin_msg_id = COALESCE(?, admin_msg_id) WHERE id = ?",
-            (admin_msg_id, order_id),
+            "UPDATE orders SET notified = 1, admin_msg_id = COALESCE(?, admin_msg_id), "
+            "admin_chat_id = COALESCE(?, admin_chat_id) WHERE id = ?",
+            (admin_msg_id, admin_chat_id, order_id),
         )
 
     async def get_order(self, order_id: int) -> dict | None:

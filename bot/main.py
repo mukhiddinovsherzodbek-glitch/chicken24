@@ -40,7 +40,7 @@ import selfping
 import webhook
 from db import Database
 from handlers import RateLimiter, resend_if_needed, resend_unnotified, router
-from logsafe import SafeFormatter
+from logsafe import SafeFormatter, register_sensitive_ids
 from menu import MenuError, MenuProvider, MenuStore
 
 logger = logging.getLogger("chicken24")
@@ -243,6 +243,8 @@ def main() -> None:
         sys.exit(1)
 
     setup_logging()
+    # ADMIN_ID va buyurtmalar guruhi ID si loglarda ochiq chiqmaydi (-100*******890)
+    register_sensitive_ids(config.admin_id, config.orders_chat_id)
     while True:
         try:
             asyncio.run(run(config))

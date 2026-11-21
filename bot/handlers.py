@@ -20,10 +20,12 @@ from typing import Any
 from urllib.parse import urlencode
 
 from aiogram import BaseMiddleware, Bot, F, Router
+from aiogram.exceptions import TelegramMigrateToChat
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
     BufferedInputFile,
     CallbackQuery,
+    ChatMemberUpdated,
     ErrorEvent,
     FSInputFile,
     InlineKeyboardButton,
@@ -60,6 +62,7 @@ from config import (
 )
 from db import CANCEL_ALREADY, CANCEL_EXPIRED, CANCEL_NOT_FOUND, UNNOTIFIED_BATCH, Database, utc_now
 from i18n import format_price, t
+from logsafe import mask_id
 from menu import MenuError, MenuProvider
 from orderapi import WindowLimiter  # orderapi handlers'ni faqat funksiya ichida import qiladi - aylana yo'q
 from validators import (
@@ -82,8 +85,10 @@ DELIVERY_AREA = DeliveryArea(DELIVERY_AREA_NAME, DELIVERY_CENTER_LAT, DELIVERY_C
 
 NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 
-# Faqat admin uchun buyruqlar (til tanlanmagan bo'lsa ham ishlaydi; ADMIN_ID har birida tekshiriladi)
+# Faqat admin uchun buyruqlar (til tanlanmagan bo'lsa ham ishlaydi; ADMIN_ID va shaxsiy chat har birida tekshiriladi)
 ADMIN_COMMANDS = {"backup", "hisobot", "excel", "excel_bugun", "excel_hafta", "excel_oy", "excel_hammasi"}
+# Guruhda ishlaydigan YAGONA buyruq: guruh chat ID sini bilish (faqat ADMIN_ID egasi uchun)
+GROUP_ID_COMMAND = "guruh_id"
 
 # Admin xabarlari uchun til (o'zbekcha qoladi)
 ADMIN_LANG = "uz"
@@ -336,7 +341,7 @@ class LanguageMiddleware(BaseMiddleware):
     """Har bir xabar/tugma bosishdan oldin: chat turi va flood tekshiruvi, so'ng mijoz tilini aniqlab
     handlerga `lang` beradi.
 
-    0) Shaxsiy chat bo'lmasa (guruh, kanal) - jim (handler ishlamaydi).
+    0) Shaxsiy chat bo'lmasa (guruh, kanal) - jim (handler ishlamaydi). Yagona istisno: guruhdagi /guruh_id.
     1) Flood: FLOOD_WINDOW_SECONDS ichida FLOOD_LIMIT tadan ortiq xabar/tugma - ortig'i jim tashlanadi
        (admin, Mini App buyurtmasi va kontakt mustasno).
     2) Tili tanlanmagan mijoz (yangi yoki eski) nima yozsa yoki bossa ham - avval til tanlash xabari.
@@ -369,6 +374,9 @@ class LanguageMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         if not _is_private_chat(event):
+            # Guruhda yagona istisno - /guruh_id (handler o'zi ADMIN_ID va guruh ekanini tekshiradi)
+            if isinstance(event, Message) and _command_name(event.text) == GROUP_ID_COMMAND:
+                return await handler(event, data)
             await _answer_quietly(event)
             return None
         user: User | None = data.get("event_from_user") or getattr(event, "from_user", None)
@@ -993,19 +1001,34 @@ async def on_cancel_order(
     except Exception:
         logger.exception("Mijozga bekor qilish xabari yuborilmadi (order_id=%s)", order_id)
 
-    # Admin'ga (o'zbekcha): chek xabariga javob sifatida (chek yetib bormagan bo'lsa - qayta yuborilmaydi)
+    # Buyurtmalar chatiga (o'zbekcha): chek turgan chatda chekka javob sifatida
+    # (chek yetib bormagan bo'lsa - xabar ham yuborilmaydi)
     if order.get("notified"):
-        kwargs = {}
-        if order.get("admin_msg_id"):
-            kwargs["reply_parameters"] = ReplyParameters(message_id=order["admin_msg_id"], allow_sending_without_reply=True)
-        try:
-            await bot.send_message(
-                config.admin_id,
-                f"🚫 <b>Mijoz buyurtma #{order_id} ni bekor qildi.</b> Tayyorlamang.",
-                **kwargs,
-            )
-        except Exception:
-            logger.exception("Admin'ga bekor qilish xabari yuborilmadi (order_id=%s)", order_id)
+        await notify_cancelled(bot, config, order_id, order)
+
+
+async def notify_cancelled(bot: Bot, config: Config, order_id: int, order: dict) -> None:
+    """Bekor qilish xabari chek turgan chatga (admin_chat_id; eski cheklarda - ADMIN_ID), chekka javob.
+    U chatga yuborib bo'lmasa - send_to_orders_chat (guruh, keyin admin zaxirasi)."""
+    text = f"🚫 <b>Mijoz buyurtma #{order_id} ni bekor qildi.</b> Tayyorlamang."
+    chat_id = order.get("admin_chat_id") or config.admin_id
+    kwargs: dict[str, Any] = {}
+    if order.get("admin_msg_id"):
+        kwargs["reply_parameters"] = ReplyParameters(message_id=order["admin_msg_id"], allow_sending_without_reply=True)
+    try:
+        await bot.send_message(chat_id, text, **kwargs)
+        if config.orders_also_admin and chat_id != config.admin_id:
+            try:
+                await bot.send_message(config.admin_id, text)
+            except Exception:
+                pass
+        return
+    except Exception as exc:
+        logger.warning("Bekor qilish xabari chek chatiga yuborilmadi (order_id=%s): %s", order_id, type(exc).__name__)
+    try:
+        await send_to_orders_chat(bot, config, text)
+    except Exception:
+        logger.exception("Bekor qilish xabari yuborilmadi (order_id=%s)", order_id)
 
 
 async def _safe_edit(callback: CallbackQuery, text: str) -> None:
@@ -1019,31 +1042,70 @@ async def _safe_edit(callback: CallbackQuery, text: str) -> None:
 
 # ---------------------------------------------------------------- admin'ga chek va qayta yuborish
 
+async def send_to_orders_chat(bot: Bot, config: Config, text: str, **kwargs: Any) -> tuple[Any, int]:
+    """Buyurtma xabari (chek, bekor qilish, ...) -> ORDERS_CHAT_ID guruhi; berilmagan bo'lsa ADMIN_ID.
+    Guruhga yuborib bo'lmasa (bot chiqarilgan, guruh supergruppaga ko'chgan, ruxsat yo'q) - ZAXIRA: admin'ning
+    shaxsiy chati + ogohlantirish. Admin'ga ham yetmasa - xato tashlanadi (chaqiruvchi notified=0 qoldiradi).
+    ORDERS_ALSO_ADMIN=1 bo'lsa - guruhdan tashqari admin'ga ham nusxa. Qaytadi: (yuborilgan xabar, chat ID)."""
+    target = config.orders_chat_id
+    if target is None:
+        return await bot.send_message(config.admin_id, text, **kwargs), config.admin_id
+    note = "⚠️ <b>Guruhga yuborib bo'lmadi</b> — xabar shaxsiy chatga yuborildi."
+    try:
+        sent = await bot.send_message(target, text, **kwargs)
+    except TelegramMigrateToChat as exc:
+        logger.warning("Guruhga yuborib bo'lmadi: guruh supergruppaga ko'chgan - admin'ga zaxira")
+        note += (f"\nGuruh supergruppaga ko'chgan. Yangi ID: <code>{exc.migrate_to_chat_id}</code> — "
+                 "Render → Environment → <code>ORDERS_CHAT_ID</code> ni shu qiymatga almashtiring.")
+    except Exception as exc:
+        logger.warning("Guruhga yuborib bo'lmadi (%s) - admin'ga zaxira", type(exc).__name__)
+        note += ("\nBot guruhda bormi, xabar yozishga ruxsati bormi? Guruhda <code>/guruh_id</code> yozib, "
+                 "Render'dagi ORDERS_CHAT_ID ni tekshiring.")
+    else:
+        if config.orders_also_admin:
+            try:
+                await bot.send_message(config.admin_id, text, **{k: v for k, v in kwargs.items()
+                                                                 if k != "reply_parameters"})
+            except Exception as exc:
+                logger.warning("Admin'ga nusxa yuborilmadi (%s)", type(exc).__name__)
+        return sent, target
+    sent = await bot.send_message(config.admin_id, text, **{k: v for k, v in kwargs.items() if k != "reply_parameters"})
+    try:
+        await bot.send_message(config.admin_id, note)
+    except Exception:
+        pass
+    return sent, config.admin_id
+
+
 async def deliver_receipt(bot: Bot, config: Config, db: Database, data: ReceiptData, resent: bool = False) -> bool:
-    """Chekni admin'ga yuboradi va notified=1 qiladi. Chek yetib borgan bo'lsa True.
+    """Chekni buyurtmalar guruhiga (yoki admin'ga) yuboradi va notified=1 qiladi. Chek yetib borgan bo'lsa True.
 
     notified chek yuborilishi bilan DARHOL belgilanadi (lokatsiyadan oldin), shunda
-    qayta yuborishda dublikat chek bo'lmaydi.
+    qayta yuborishda dublikat chek bo'lmaydi. Hech qayerga yetmasa - notified=0, keyin qayta yuboriladi.
     """
     try:
-        sent = await bot.send_message(
-            config.admin_id, build_receipt(data, resent=resent), link_preview_options=NO_PREVIEW
+        sent, chat_id = await send_to_orders_chat(
+            bot, config, build_receipt(data, resent=resent), link_preview_options=NO_PREVIEW
         )
     except Exception:
-        logger.exception("Admin'ga chek yuborilmadi (order_id=%s) - keyin qayta yuboriladi", data.order_id)
+        logger.exception("Chek yuborilmadi (order_id=%s) - keyin qayta yuboriladi", data.order_id)
         db.note_unnotified()
         return False
     try:
-        # Chek xabari ID si: mijoz bekor qilsa, admin'ga shu chekka javob sifatida yoziladi
-        await db.mark_notified(data.order_id, getattr(sent, "message_id", None))
+        # Chek xabari ID si va chati: mijoz bekor qilsa, shu chekka javob sifatida yoziladi
+        await db.mark_notified(data.order_id, getattr(sent, "message_id", None), chat_id)
     except Exception:
         logger.exception("notified belgisi qo'yilmadi (order_id=%s)", data.order_id)
         db.note_unnotified()
     if data.has_location:
-        try:
-            await bot.send_location(config.admin_id, latitude=data.lat, longitude=data.lon)
-        except Exception:
-            logger.exception("Admin'ga lokatsiya yuborilmadi (order_id=%s)", data.order_id)
+        targets = [chat_id]
+        if config.orders_also_admin and chat_id != config.admin_id:
+            targets.append(config.admin_id)
+        for target in targets:
+            try:
+                await bot.send_location(target, latitude=data.lat, longitude=data.lon)
+            except Exception as exc:
+                logger.warning("Lokatsiya yuborilmadi (order_id=%s): %s", data.order_id, type(exc).__name__)
     return True
 
 
@@ -1113,9 +1175,25 @@ async def on_contact(message: Message, db: Database) -> None:
 # ---------------------------------------------------------------- admin buyruqlari (o'zbekcha)
 
 def is_admin(message: Message, config: Config) -> bool:
-    """Har bir admin buyrug'ida tekshiriladi. Menyuda yashirish himoya emas - mijoz qo'lda yozishi mumkin.
-    Admin bo'lmaganlarga bot JIM qoladi (buyruq borligini ham bildirmaydi)."""
-    return message.from_user is not None and message.from_user.id == config.admin_id
+    """Har bir admin buyrug'ida tekshiriladi: FAQAT botning shaxsiy chatida va FAQAT ADMIN_ID.
+    Guruhda (hatto admin yozsa ham) va begona foydalanuvchiga bot JIM (buyruq borligini ham bildirmaydi).
+    Menyuda yashirish himoya emas - shuning uchun har buyruqda alohida tekshiriladi."""
+    return (message.from_user is not None and message.from_user.id == config.admin_id
+            and getattr(message.chat, "type", None) == "private")
+
+
+@router.message(Command(GROUP_ID_COMMAND))
+async def cmd_group_id(message: Message, config: Config) -> None:
+    """/guruh_id - FAQAT guruhda va FAQAT ADMIN_ID yozganda guruh chat ID si (ORDERS_CHAT_ID uchun).
+    Shaxsiy chatda va boshqalarga - jim."""
+    chat_type = getattr(message.chat, "type", None)
+    if chat_type not in ("group", "supergroup") or message.from_user is None or message.from_user.id != config.admin_id:
+        return
+    await safe_answer(
+        message,
+        f"🆔 Guruh ID: <code>{message.chat.id}</code>\n"
+        "Render → Environment → <code>ORDERS_CHAT_ID</code> ga shu qiymatni yozing.",
+    )
 
 
 @router.message(Command("backup"))
@@ -1186,6 +1264,52 @@ async def send_excel(message: Message, period_arg: str, db: Database) -> None:
     )
 
 
+# ---------------------------------------------------------------- bot guruhga qo'shildi
+
+@router.my_chat_member()
+async def on_my_chat_member(event: ChatMemberUpdated, bot: Bot, config: Config) -> None:
+    """Bot guruh/kanalga qo'shildi:
+    - qo'shgan ADMIN_ID emas - darhol chiqib ketadi;
+    - ADMIN_ID qo'shgan va ORDERS_CHAT_ID berilmagan yoki shu guruh - qoladi;
+    - ADMIN_ID qo'shgan, lekin ORDERS_CHAT_ID boshqa guruh - chiqib ketadi va admin'ga shaxsiy chatda yozadi."""
+    chat = event.chat
+    if chat.type == "private":
+        return
+    joined = (event.new_chat_member.status in ("member", "administrator", "restricted")
+              and event.old_chat_member.status in ("left", "kicked"))
+    if not joined:
+        return
+    adder = event.from_user.id if event.from_user else None
+    if config.orders_chat_id is not None and chat.id == config.orders_chat_id:
+        logger.info("Bot buyurtmalar guruhiga qo'shildi (%s)", mask_id(chat.id))
+        return
+    if adder != config.admin_id:
+        logger.warning("Bot begona guruhga qo'shildi (%s) - chiqib ketildi", mask_id(chat.id))
+        try:
+            await bot.leave_chat(chat.id)
+        except Exception as exc:
+            logger.warning("Guruhdan chiqib bo'lmadi: %s", type(exc).__name__)
+        return
+    if config.orders_chat_id is None:
+        logger.info("Admin botni guruhga qo'shdi (%s) - ORDERS_CHAT_ID hali berilmagan", mask_id(chat.id))
+        return
+    logger.warning("Admin botni boshqa guruhga qo'shdi (%s) - ORDERS_CHAT_ID boshqa, chiqib ketildi", mask_id(chat.id))
+    try:
+        await bot.leave_chat(chat.id)
+    except Exception as exc:
+        logger.warning("Guruhdan chiqib bo'lmadi: %s", type(exc).__name__)
+    try:
+        await bot.send_message(
+            config.admin_id,
+            f"ℹ️ Bot «{html.escape(chat.title or '')}» guruhiga qo'shildi, lekin buyurtmalar guruhi "
+            f"(ORDERS_CHAT_ID) boshqa — bot chiqib ketdi.\n"
+            f"Shu guruhni ishlatmoqchi bo'lsangiz: Render → Environment → <code>ORDERS_CHAT_ID</code> = "
+            f"<code>{chat.id}</code>, keyin botni guruhga qayta qo'shing.",
+        )
+    except Exception as exc:
+        logger.warning("Admin'ga xabar yuborilmadi: %s", type(exc).__name__)
+
+
 # ---------------------------------------------------------------- boshqa xabarlar
 
 @router.message(F.text)
@@ -1195,6 +1319,9 @@ async def fallback_text(message: Message, bot: Bot, config: Config, db: Database
     Admin buyruqlari bu yerga kelmaydi - ular o'z handlerida (begona foydalanuvchiga javob berilmaydi)."""
     user = message.from_user
     if user is None or _command_name(message.text) in ADMIN_COMMANDS:
+        return
+    if getattr(message.chat, "type", "private") != "private":
+        # guruhdan faqat /guruh_id... o'tadi; boshqa botga yozilgan /guruh_id@boshqabot shu yerga tushadi - jim
         return
     await switch_to_inline(bot, config, db, user.id, lang)
     await safe_answer(message, t(lang, "fallback", btn=t(lang, "btn.order")),

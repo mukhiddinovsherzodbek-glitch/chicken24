@@ -163,7 +163,8 @@ def test_admin_commands_only_for_admin():
         def msg(uid, key):
             async def answer(text, **kw):
                 out[key].append(text)
-            return SimpleNamespace(from_user=SimpleNamespace(id=uid), answer=answer)
+            return SimpleNamespace(from_user=SimpleNamespace(id=uid), answer=answer,
+                                   chat=SimpleNamespace(id=uid, type="private"))
 
         await cmd_report(msg(999, "admin"), CFG, db)
         await cmd_report(msg(5, "user"), CFG, db)

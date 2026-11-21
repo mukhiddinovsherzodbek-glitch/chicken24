@@ -61,8 +61,9 @@ async def seeded_db() -> Database:
 
 
 class Msg:
-    def __init__(self, uid: int) -> None:
+    def __init__(self, uid: int, chat_type: str = "private", chat_id: int | None = None) -> None:
         self.from_user = SimpleNamespace(id=uid)
+        self.chat = SimpleNamespace(id=uid if chat_id is None else chat_id, type=chat_type)
         self.texts: list[str] = []
         self.docs: list = []
 

@@ -16,7 +16,32 @@ _BOT_TOKEN = re.compile(r"(?<![\w])\d{5,}:[A-Za-z0-9_-]{30,}")
 _DSN_PASSWORD = re.compile(r"(postgres(?:ql)?://[^:/@\s]+:)[^@\s]+@", re.IGNORECASE)
 
 
+# Sozlamadagi chat ID lar (ADMIN_ID, ORDERS_CHAT_ID) - loglarda ochiq chiqmaydi (main.py ro'yxatga oladi)
+_SENSITIVE_IDS: list[re.Pattern] = []
+
+
+def register_sensitive_ids(*values: object) -> None:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if len(text.lstrip("-")) >= 4:
+            _SENSITIVE_IDS.append(re.compile(rf"(?<![\d-]){re.escape(text)}(?!\d)"))
+
+
+def mask_id(value: object) -> str:
+    """-1001234567890 -> -100*******890 (logda qaysi ekanini taxminan bilish uchun oxiri qoladi)."""
+    text = str(value)
+    sign, digits = ("-", text[1:]) if text.startswith("-") else ("", text)
+    if len(digits) <= 4:
+        return sign + "*" * len(digits)
+    head = 3 if sign else 0
+    return sign + digits[:head] + "*" * (len(digits) - head - 3) + digits[-3:]
+
+
 def scrub(text: str) -> str:
+    for pattern in _SENSITIVE_IDS:
+        text = pattern.sub(lambda m: mask_id(m.group(0)), text)
     text = _BOT_TOKEN.sub("<BOT_TOKEN>", text)
     text = _DSN_PASSWORD.sub(r"\1***@", text)
     return _UZ_PHONE.sub(lambda m: f"+998 ** *** ** {m.group(1)}", text)

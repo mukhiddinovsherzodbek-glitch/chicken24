@@ -1,7 +1,9 @@
 """Telegram "/" buyruqlar menyusi.
 
-- Mijozlar (BotCommandScopeDefault): /start va /til.
-- Admin (BotCommandScopeChat, chat_id=ADMIN_ID): to'liq ro'yxat.
+- Mijozlar (BotCommandScopeAllPrivateChats - shaxsiy chatlar): /start va /til.
+- Admin (BotCommandScopeChat, chat_id=ADMIN_ID - faqat admin'ning shaxsiy chati): to'liq ro'yxat.
+- Guruhlar (BotCommandScopeAllGroupChats) va umumiy (Default): BO'SH - guruhda bot hech narsaga javob bermaydi
+  (yagona istisno /guruh_id menyuda ko'rsatilmaydi).
 Bot har ishga tushganda (polling'dan oldin) qo'llanadi; avval boshqa scope/tillarga o'rnatilgan
 eski buyruqlar tozalanadi, shunda mijozlarga admin buyruqlari qolib ketmaydi.
 
@@ -70,11 +72,17 @@ async def apply_commands(bot: Bot, admin_id: int) -> None:
             except Exception as exc:  # masalan, admin chati hali mavjud emas
                 logger.debug("Buyruqlarni tozalab bo'lmadi (%s, %s): %s", scope.type, lang, exc)
 
-    # 2) Mijozlar uchun: faqat /start
+    # 2) Mijozlar uchun (faqat shaxsiy chatlar): /start, /til. Default bo'sh qoladi (1-qadamda tozalangan)
     try:
-        await bot.set_my_commands(_commands(CUSTOMER_COMMANDS), scope=BotCommandScopeDefault())
+        await bot.set_my_commands(_commands(CUSTOMER_COMMANDS), scope=BotCommandScopeAllPrivateChats())
     except Exception:
         logger.exception("Mijozlar uchun buyruqlar menyusini o'rnatib bo'lmadi")
+
+    # 2b) Guruhlar uchun: bo'sh ro'yxat (guruhda bot jim)
+    try:
+        await bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())
+    except Exception as exc:  # bo'sh ro'yxat qabul qilinmasa ham - 1-qadamda tozalangan, Default ham bo'sh
+        logger.debug("Guruhlar uchun bo'sh menyu o'rnatilmadi: %s", exc)
 
     # 3) Admin uchun: to'liq ro'yxat
     try:
