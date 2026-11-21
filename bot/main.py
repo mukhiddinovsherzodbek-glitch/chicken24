@@ -37,6 +37,7 @@ from config import (
 )
 import orderapi
 import selfping
+import webapi
 import webhook
 from db import Database
 from handlers import RateLimiter, resend_if_needed, resend_unnotified, router
@@ -198,6 +199,9 @@ async def run(config: Config) -> None:
                                         allowed_origin=orderapi.origin_of(config.webapp_url), ready=ready),
                 orderapi.OrderSubmitAPI(bot=bot, config=config, menu_store=menu_store, db=db,
                                         limiter=limiter, ready=ready),
+                # Sayt (chicken24.uz) buyurtmalari - Telegram'siz mijoz (webapi.py)
+                webapi.WebOrderAPI(bot=bot, config=config, menu_store=menu_store, db=db,
+                                   limiter=limiter, ready=ready),
             ]
             runner = await webhook.start_server(dp, bot, secret=config.webhook_secret, port=config.port,
                                                 ready=ready, api=api)

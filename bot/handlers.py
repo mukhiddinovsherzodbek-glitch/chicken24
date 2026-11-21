@@ -517,9 +517,12 @@ def build_receipt(data: ReceiptData, resent: bool = False) -> str:
         f"📞 Telefon: {html.escape(format_phone(data.phone))}"
         + (" ✅ <i>(Telegram raqami)</i>" if data.phone_verified else ""),
     ]
-    if data.username:
-        lines.append(f"💬 Username: @{html.escape(data.username)}")
-    lines.append(f'🆔 Telegram: <code>{data.user_id}</code> (<a href="tg://user?id={data.user_id}">profil</a>)')
+    if data.user_id < 0:  # sayt buyurtmasi (webapi.py): Telegram profili yo'q
+        lines.append("🌐 Manba: <b>sayt (chicken24.uz)</b>")
+    else:
+        if data.username:
+            lines.append(f"💬 Username: @{html.escape(data.username)}")
+        lines.append(f'🆔 Telegram: <code>{data.user_id}</code> (<a href="tg://user?id={data.user_id}">profil</a>)')
 
     if data.has_location:
         url = maps_url(data.lat, data.lon)

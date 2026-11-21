@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1E0A0D">
+  <meta name="description" content="Chicken24: burger, lavash, pitsa va tovuq yetkazib berish. Saytdan buyurtma bering.">
+  <!-- Xavfsizlik: skriptlar faqat o'zimizdan va Cloudflare Turnstile dan; so'rov faqat bot serveriga -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://chicken24-bot.onrender.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>Chicken24: yetkazib berish</title>
+  <link rel="icon" href="/images/logo-192.webp" type="image/webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Inter:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="site.css?v=1">
+  <script src="site-config.js?v=1" defer></script>
+  <script src="site.js?v=1" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-in">
+      <a class="brand" href="#top"><img src="/images/logo-192.webp" alt="" width="44" height="44"><span>Chicken<b>24</b></span></a>
+      <nav class="nav" aria-label="Menu">
+        <a href="#menu" data-i18n="nav.menu">Menyu</a>
+        <a href="#info" data-i18n="nav.info">Yetkazish</a>
+      </nav>
+      <div class="top-r">
+        <div class="lang" role="group" aria-label="Til">
+          <button type="button" data-lang="uz" aria-pressed="true">UZ</button>
+          <button type="button" data-lang="ru" aria-pressed="false">RU</button>
+        </div>
+        <button type="button" class="cart-btn" id="openCart">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 4h2l2.4 11h10.2L20 7H6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="19" r="1.5" fill="currentColor"/><circle cx="17" cy="19" r="1.5" fill="currentColor"/></svg>
+          <span class="cl"><span data-i18n="cart.btn">Savat</span> · </span><b id="cartCount">0</b>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="closedBanner" class="banner" role="status" hidden></div>
+
+  <main id="top">
+    <section class="wrap hero">
+      <div class="hero-l">
+        <span class="pill" data-i18n="hero.hours">Har kuni 10:00 dan 03:00 gacha</span>
+        <h1><span data-i18n="hero.t1">Issiq. Qarsildoq.</span> <em data-i18n="hero.t2">Eshigingizgacha.</em></h1>
+        <p data-i18n="hero.p">Burger, lavash, pitsa va tovuq. Saytdan buyurtma bering, biz yetkazamiz. To'lov naqd.</p>
+        <div class="hero-cta">
+          <a class="btn" href="#menu" data-i18n="hero.cta">Buyurtma berish</a>
+        </div>
+        <div class="muted" data-i18n="hero.fee">Yetkazish 10 000 so'mdan · Minimal buyurtma yo'q</div>
+      </div>
+      <div class="hero-r"><img src="/images/cat-chicken.webp" alt="Chicken24" width="640" height="420" fetchpriority="high"></div>
+    </section>
+
+    <nav class="wrap cats" id="cats" aria-label="Kategoriyalar"></nav>
+    <div class="wrap" id="menu"><div class="muted" id="menuState">…</div></div>
+
+    <section class="wrap info" id="info">
+      <h2 data-i18n="info.title">Yetkazish va to'lov</h2>
+      <ul>
+        <li data-i18n="info.hours">Ish vaqti: har kuni 10:00 dan 03:00 gacha</li>
+        <li data-i18n="info.pay">To'lov: naqd, buyurtma yetkazilganda</li>
+        <li data-i18n="info.fee">Yetkazish narxi: 10 000 so'mdan</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="wrap foot"><span>© Chicken24</span></footer>
+
+  <button type="button" class="cart-bar" id="cartBar" hidden>
+    <span data-i18n="cart.go">Savatga o'tish</span><b id="cartBarTotal"></b>
+  </button>
+
+  <dialog id="cartDlg" aria-labelledby="cartTitle">
+    <div class="dlg-in">
+      <div class="dlg-head"><h2 id="cartTitle" data-i18n="cart.title">Savatingiz</h2><button type="button" class="x" id="closeCart" aria-label="Yopish">×</button></div>
+      <div id="cartBody"></div>
+    </div>
+  </dialog>
+
+  <noscript><p class="wrap">Saytni ishlatish uchun JavaScript kerak. / Для работы сайта нужен JavaScript.</p></noscript>
+</body>
+</html>
