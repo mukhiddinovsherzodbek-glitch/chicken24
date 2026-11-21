@@ -139,3 +139,40 @@ def test_ip_limit():
 def test_plain_text_and_user_id():
     assert webapi.plain_text("<b>Yopiq</b> &amp; ok") == "Yopiq & ok"
     assert webapi.web_user_id("+998901234567") == -998901234567
+
+
+async def get(client, path, origin=ORIGIN):
+    resp = await client.get(path, headers={"Origin": origin} if origin else {})
+    return resp.status, await resp.json(), resp
+
+
+def test_web_config_and_quote():
+    async def go(client, env, bot, api):
+        status, body, resp = await get(client, webapi.WEB_CONFIG_PATH)
+        assert status == 200 and set(body) == {"base_km", "base_fee", "extra_per_km"}
+        assert resp.headers["Access-Control-Allow-Origin"] == ORIGIN
+        lat, lon = api._delivery.origin
+        status, near, _ = await get(client, f"{webapi.WEB_QUOTE_PATH}?lat={lat}&lon={lon}")
+        assert status == 200 and near["fee"] == body["base_fee"] and near["km"] <= 0.1
+        status, far, _ = await get(client, f"{webapi.WEB_QUOTE_PATH}?lat={lat + 0.1}&lon={lon}")  # ~11 km
+        assert status == 200 and far["fee"] > near["fee"] and far["km"] > body["base_km"]
+        assert (far["fee"] - body["base_fee"]) % body["extra_per_km"] == 0
+        for bad in ("", "?lat=abc&lon=1", "?lat=95&lon=1", "?lat=1"):
+            status, _, _ = await get(client, webapi.WEB_QUOTE_PATH + bad)
+            assert status == 400
+        status, _, _ = await get(client, f"{webapi.WEB_QUOTE_PATH}?lat={lat}&lon={lon}", origin="https://evil.example")
+        assert status == 403
+        status, _, _ = await get(client, webapi.WEB_CONFIG_PATH, origin=None)
+        assert status == 403
+        ok = await client.options(webapi.WEB_QUOTE_PATH, headers={"Origin": ORIGIN})
+        assert ok.status == 204 and ok.headers["Access-Control-Allow-Methods"] == "GET"
+    run(with_api(go))
+
+
+def test_web_quote_rate_limit():
+    async def go(client, env, bot, api):
+        lat, lon = api._delivery.origin
+        codes = [(await get(client, f"{webapi.WEB_QUOTE_PATH}?lat={lat}&lon={lon}"))[0]
+                 for _ in range(webapi.QUOTE_LIMIT + 1)]
+        assert codes[:webapi.QUOTE_LIMIT] == [200] * webapi.QUOTE_LIMIT and codes[-1] == 429
+    run(with_api(go))

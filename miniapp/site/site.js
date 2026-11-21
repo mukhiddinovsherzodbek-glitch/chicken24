@@ -9,9 +9,9 @@
       'nav.menu': 'Menyu', 'nav.info': 'Yetkazish', 'cart.btn': 'Savat', 'cart.title': 'Savatingiz', 'cart.go': "Savatga o'tish",
       'hero.hours': 'Har kuni 10:00 dan 03:00 gacha', 'hero.t1': 'Issiq. Qarsildoq.', 'hero.t2': 'Eshigingizgacha.',
       'hero.p': "Burger, lavash, pitsa va tovuq. Saytdan buyurtma bering, biz yetkazamiz. To'lov naqd.",
-      'hero.cta': 'Buyurtma berish', 'hero.fee': "Yetkazish 10 000 so'mdan · Minimal buyurtma yo'q",
+      'hero.cta': 'Buyurtma berish',
       'info.title': "Yetkazish va to'lov", 'info.hours': 'Ish vaqti: har kuni 10:00 dan 03:00 gacha',
-      'info.pay': "To'lov: naqd, buyurtma yetkazilganda", 'info.fee': "Yetkazish narxi: 10 000 so'mdan",
+      'info.pay': "To'lov: naqd, buyurtma yetkazilganda",
       sum: "so'm", add: "Savatga qo'shish", minus: 'Kamaytirish', plus: "Ko'paytirish", close: 'Yopish',
       empty: "Savat bo'sh. Menyudan taom tanlang.", items: 'Taomlar', fee: 'Yetkazish', total: 'Jami',
       name: 'Ismingiz', phone: 'Telefon raqamingiz', addr: 'Manzil', byLoc: 'Joylashuvim', byText: 'Matn bilan',
@@ -31,9 +31,9 @@
       'nav.menu': 'Меню', 'nav.info': 'Доставка', 'cart.btn': 'Корзина', 'cart.title': 'Ваша корзина', 'cart.go': 'Перейти в корзину',
       'hero.hours': 'Ежедневно с 10:00 до 03:00', 'hero.t1': 'Горячо. Хрустяще.', 'hero.t2': 'Прямо к вашей двери.',
       'hero.p': 'Бургеры, лаваш, пицца и курица. Заказывайте на сайте, мы доставим. Оплата наличными.',
-      'hero.cta': 'Заказать', 'hero.fee': 'Доставка от 10 000 сум · Без минимальной суммы',
+      'hero.cta': 'Заказать',
       'info.title': 'Доставка и оплата', 'info.hours': 'Время работы: ежедневно с 10:00 до 03:00',
-      'info.pay': 'Оплата: наличными при получении', 'info.fee': 'Стоимость доставки: от 10 000 сум',
+      'info.pay': 'Оплата: наличными при получении',
       sum: 'сум', add: 'Добавить в корзину', minus: 'Уменьшить', plus: 'Увеличить', close: 'Закрыть',
       empty: 'Корзина пуста. Выберите блюда в меню.', items: 'Блюда', fee: 'Доставка', total: 'Итого',
       name: 'Ваше имя', phone: 'Ваш телефон', addr: 'Адрес', byLoc: 'Моя геолокация', byText: 'Текстом',
@@ -51,6 +51,35 @@
     },
   };
 
+  Object.assign(T.uz, {
+    'nav.how': 'Qanday buyurtma beriladi',
+    'hero.h1a': 'Qarsildoq tovuq.', 'hero.h1b': 'Soat 03:00 gacha.',
+    'hero.p': "Burger, lavash, pitsa va tovuq. Saytdan buyurtma bering, biz eshigingizgacha yetkazamiz.",
+    'hero.cta': 'Menyuni ochish', 'hero.f1': 'Har kuni 10:00–03:00', 'hero.f2': "To'lov naqd",
+    'hero.stamp': 'gacha ochiq', 'hero.deal': 'Bugungi aksiya',
+    'tiles.title': 'Nima yeysiz?', 'how.title': 'Qanday buyurtma beriladi',
+    'how.s1t': 'Taom tanlang', 'how.s1p': "Menyudan kerakli taomni savatga qo'shing.",
+    'how.s2t': 'Manzilni bering', 'how.s2p': 'Joylashuvingizni yuboring yoki manzilni yozing.',
+    'how.s3t': "Naqd to'lang", 'how.s3p': "Buyurtma eshigingizgacha keladi, to'lov yetkazilganda.",
+    'end.t': 'Och qoldingizmi? Soat 03:00 gacha yetkazamiz.', 'end.cta': 'Buyurtma berish',
+    'foot.hours': 'Har kuni 10:00–03:00', 'foot.tg': 'Telegram botda ham buyurtma bering', cnt: 'ta',
+    km: 'km', feeTbd: 'masofaga qarab', totalNoFee: 'Jami (yetkazishsiz)', 'foot.follow': 'Bizni kuzating',
+  });
+  Object.assign(T.ru, {
+    'nav.how': 'Как заказать',
+    'hero.h1a': 'Хрустящая курица.', 'hero.h1b': 'До 03:00.',
+    'hero.p': 'Бургеры, лаваш, пицца и курица. Закажите на сайте, мы привезём прямо к двери.',
+    'hero.cta': 'Открыть меню', 'hero.f1': 'Ежедневно 10:00–03:00', 'hero.f2': 'Оплата наличными',
+    'hero.stamp': 'открыты', 'hero.deal': 'Акция дня',
+    'tiles.title': 'Что будем есть?', 'how.title': 'Как сделать заказ',
+    'how.s1t': 'Выберите блюда', 'how.s1p': 'Добавьте нужное из меню в корзину.',
+    'how.s2t': 'Укажите адрес', 'how.s2p': 'Отправьте геолокацию или напишите адрес.',
+    'how.s3t': 'Оплатите наличными', 'how.s3p': 'Заказ приедет к двери, оплата при получении.',
+    'end.t': 'Проголодались? Доставляем до 03:00.', 'end.cta': 'Заказать',
+    'foot.hours': 'Ежедневно 10:00–03:00', 'foot.tg': 'Заказывайте и в Telegram-боте', cnt: 'блюд',
+    km: 'км', feeTbd: 'по расстоянию', totalNoFee: 'Итого (без доставки)', 'foot.follow': 'Мы в соцсетях',
+  });
+
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* shaxsiy rejim */ } },
@@ -60,7 +89,7 @@
   let menu = { categories: [], items: [] };
   let byId = new Map();
   let cart = store.get('c24_cart', {});        // { itemId: qty }
-  let form = store.get('c24_form', { name: '', phone: '', mode: 'text', text: '', details: '', comment: '' });
+  let form = store.get('c24_form', { name: '', phone: '', mode: 'location', text: '', details: '', comment: '' });
   let geo = null;                               // { lat, lon }
   let geoState = '';                            // '', 'wait', 'ok', 'fail'
   let view = 'cart';                            // 'cart' | 'done'
@@ -69,10 +98,18 @@
   let sending = false;
   let pendingRef = null;                        // tarmoq xatosidan keyin AYNAN SHU ref qayta yuboriladi (idempotent)
   let tsToken = '', tsWidget = null;
+  let tariff = { ...CFG.TARIFF_FALLBACK };      // bot /api/web-config dan yangilanadi
+  let quote = null;                              // { km, fee, approx } - joylashuv bo'yicha aniq narx
 
   const t = (k) => (T[lang] && T[lang][k]) || T.uz[k] || k;
   const money = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   const sum = (n) => `${money(n)} ${t('sum')}`;
+  const feeShort = () => lang === 'ru'
+    ? `Доставка: до ${tariff.base_km} км ${money(tariff.base_fee)} сум, далее +${money(tariff.extra_per_km)} за км`
+    : `Yetkazish: ${tariff.base_km} km gacha ${money(tariff.base_fee)} so'm, keyin har km +${money(tariff.extra_per_km)}`;
+  const feeLong = () => lang === 'ru'
+    ? `Доставка: до ${tariff.base_km} км — ${money(tariff.base_fee)} сум, далее +${money(tariff.extra_per_km)} сум за каждый километр. Точная цена считается по геолокации.`
+    : `Yetkazish: ${tariff.base_km} km gacha ${money(tariff.base_fee)} so'm, keyin har kilometr uchun +${money(tariff.extra_per_km)} so'm. Aniq narx joylashuv bo'yicha hisoblanadi.`;
 
   function el(tag, props, ...kids) {
     const n = document.createElement(tag);
@@ -120,15 +157,16 @@
   function applyLang() {
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+    document.querySelectorAll('[data-fee]').forEach((n) => { n.textContent = feeShort(); });
     document.querySelectorAll('.lang button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
     $('closeCart').setAttribute('aria-label', t('close'));
-    renderMenu(); renderCounters(); updateBanner();
+    renderMenu(); renderLanding(); renderMenuButtons(); renderCounters(); updateBanner();
     if ($('cartDlg').open) renderCart();
   }
 
   // ---------------------------------------------------------------- menyu
   function renderMenu() {
-    const host = $('menu'), cats = $('cats');
+    const host = $('menuList'), cats = $('cats');
     host.replaceChildren(); cats.replaceChildren();
     if (!menu.items.length) { host.append(el('div', { class: 'muted', id: 'menuState', text: t(menuFailed ? 'menuErr' : 'loading') })); return; }
     for (const c of menu.categories) {
@@ -136,32 +174,66 @@
       if (!its.length) continue;
       cats.append(el('a', { href: '#cat-' + c.id, text: catName(c) }));
       host.append(el('section', { class: 'sec', id: 'cat-' + c.id },
-        el('h2', { text: catName(c) }),
+        el('h2', {}, catName(c), el('small', { text: `${its.length} ${t('cnt')}` })),
         el('div', { class: 'grid' }, its.map(card))));
     }
   }
   function card(i) {
     const d = itemDesc(i);
     return el('article', { class: 'card', 'data-id': i.id },
-      el('img', { src: imgUrl(i.image), alt: '', loading: 'lazy', width: 400, height: 300 }),
+      el('div', { class: 'card-im' },
+        el('img', { src: imgUrl(i.image), alt: '', loading: 'lazy', width: 400, height: 300 }),
+        el('span', { class: 'price', text: sum(i.price) })),
       el('div', { class: 'card-b' },
         el('h3', { text: i.name }),
         d ? el('p', { text: d }) : null,
-        el('div', { class: 'card-f' }, el('span', { class: 'price', text: sum(i.price) }), el('div', { class: 'ctl' }))));
+        el('div', { class: 'card-f' }, el('div', { class: 'ctl' }))));
   }
   function renderMenuButtons() {
     document.querySelectorAll('.card').forEach((c) => {
       const id = c.dataset.id, q = cart[id] || 0, ctl = c.querySelector('.ctl');
-      ctl.replaceChildren(q === 0
-        ? el('button', { type: 'button', class: 'add', 'aria-label': `${t('add')}: ${byId.get(id).name}`, text: '+', onclick: () => setQty(id, 1) })
-        : stepper(id, q));
+      ctl.replaceChildren(ctlFor(id, q));
     });
+    if (dealId) $('dealCtl').replaceChildren(ctlFor(dealId, cart[dealId] || 0));
+  }
+  function ctlFor(id, q) {
+    return q === 0
+      ? el('button', { type: 'button', class: 'add', 'aria-label': `${t('add')}: ${byId.get(id).name}`, text: '+', onclick: () => setQty(id, 1) })
+      : stepper(id, q);
   }
   function stepper(id, q) {
     return el('div', { class: 'step' },
       el('button', { type: 'button', 'aria-label': t('minus'), text: '−', onclick: () => setQty(id, (cart[id] || 0) - 1) }),
       el('b', { text: String(q) }),
       el('button', { type: 'button', 'aria-label': t('plus'), text: '+', onclick: () => setQty(id, (cart[id] || 0) + 1) }));
+  }
+
+  // ---------------------------------------------------------------- bosh sahifa: aksiya va mozaika
+  let dealId = null;
+  function renderLanding() {
+    const deal = $('deal');
+    const pick = byId.get('kombo-1') || menu.items.find((i) => i.category === 'kombo');
+    dealId = pick ? pick.id : null;
+    deal.hidden = !pick;
+    if (pick) {
+      const img = $('dealImg');
+      img.src = imgUrl(pick.image); img.alt = pick.name;
+      $('dealName').textContent = pick.name;
+      $('dealDesc').textContent = itemDesc(pick);
+      $('dealPrice').textContent = sum(pick.price);
+    }
+    const host = $('tiles');
+    host.replaceChildren();
+    const order = ['chicken', 'burger', 'lavash', 'pizza', 'kombo', 'xachapuri', 'qoshimchalar'];
+    const cats = order.map((id) => menu.categories.find((c) => c.id === id)).filter(Boolean);
+    for (const c of menu.categories) if (!cats.includes(c)) cats.push(c);
+    cats.forEach((c, n) => {
+      const count = menu.items.filter((i) => i.category === c.id).length;
+      const cls = 'tile' + (c.id === 'chicken' ? ' big' : (n >= cats.length - 2 && cats.length >= 7 ? ' wide' : ''));
+      host.append(el('a', { class: cls, href: '#cat-' + c.id },
+        el('img', { src: imgUrl(c.image), alt: '', loading: 'lazy' }),
+        el('span', { class: 'tile-l' }, catName(c), el('small', { text: `${count} ${t('cnt')}` }))));
+    });
   }
 
   // ---------------------------------------------------------------- ish vaqti (Toshkent, 10:00-03:00)
@@ -185,14 +257,18 @@
     if (view === 'done') return renderDone(body);
     const ls = lines();
     if (!ls.length) { body.append(el('p', { class: 'muted', text: t('empty') })); return; }
-    const total = itemsTotal(), fee = CFG.DELIVERY_FEE;
+    const total = itemsTotal();
+    const q = form.mode === 'location' && geo && quote ? quote : null;
     body.append(
       el('div', {}, ls.map(({ item, qty }) => el('div', { class: 'line' },
         el('div', { class: 'nm' }, el('span', { text: item.name }), el('small', { text: sum(item.price) })),
         stepper(item.id, qty)))),
       el('div', { class: 'sum' }, el('span', { text: t('items') }), el('span', { text: sum(total) })),
-      el('div', { class: 'sum muted' }, el('span', { text: t('fee') }), el('span', { text: sum(fee) })),
-      el('div', { class: 'sum big' }, el('span', { text: t('total') }), el('span', { text: sum(total + fee) })),
+      q
+        ? el('div', { class: 'sum muted' }, el('span', { text: `${t('fee')} · ${q.km.toFixed(1)} ${t('km')}` }), el('span', { text: (q.approx ? '≈ ' : '') + sum(q.fee) }))
+        : el('div', { class: 'sum muted' }, el('span', { text: t('fee') }), el('span', { text: t('feeTbd') })),
+      el('div', { class: 'sum big' }, el('span', { text: q ? t('total') : t('totalNoFee') }), el('span', { text: sum(total + (q ? q.fee : 0)) })),
+      el('p', { class: 'muted', hidden: !!q, text: q ? '' : feeLong() }),
       checkoutForm());
     mountCaptcha();
   }
@@ -236,9 +312,28 @@
     if (!navigator.geolocation) { geoState = 'fail'; return renderCart(); }
     geoState = 'wait'; renderCart();
     navigator.geolocation.getCurrentPosition(
-      (p) => { geo = { lat: p.coords.latitude, lon: p.coords.longitude }; geoState = 'ok'; renderCart(); },
+      (p) => { geo = { lat: p.coords.latitude, lon: p.coords.longitude }; geoState = 'ok'; quote = null; renderCart(); fetchQuote(); },
       () => { geo = null; geoState = 'fail'; renderCart(); },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  }
+
+  async function fetchQuote() {
+    if (!geo) return;
+    const at = geo;
+    try {
+      const r = await fetch(`${CFG.API_BASE}/api/web-quote?lat=${at.lat.toFixed(6)}&lon=${at.lon.toFixed(6)}`);
+      if (!r.ok) return;
+      const j = await r.json();
+      if (geo === at && Number.isFinite(j.fee) && Number.isFinite(j.km)) { quote = j; if (view !== 'done') renderCart(); }
+    } catch { /* narx buyurtma chekida hisoblanadi */ }
+  }
+  async function loadTariff() {
+    try {
+      const r = await fetch(CFG.API_BASE + '/api/web-config');
+      if (!r.ok) return;
+      const j = await r.json();
+      if ([j.base_km, j.base_fee, j.extra_per_km].every(Number.isFinite)) { tariff = { base_km: j.base_km, base_fee: j.base_fee, extra_per_km: j.extra_per_km }; applyLang(); }
+    } catch { /* standart tarif ko'rsatiladi */ }
   }
 
   function normPhone(v) {
@@ -299,7 +394,7 @@
       else {
         const j = await r.json();
         pendingRef = null;
-        if (j.status === 'accepted') { cart = {}; saveCart(); done = j.n; view = 'done'; renderCounters(); renderMenuButtons(); }
+        if (j.status === 'accepted') { cart = {}; saveCart(); quote = null; geo = null; geoState = ''; done = j.n; view = 'done'; renderCounters(); renderMenuButtons(); }
         else errMsg = j.message || t('eRej');
       }
     } catch { errMsg = t('eNet'); }
@@ -329,6 +424,7 @@
     applyLang();
     // Render bepul rejimda uxlab qolishi mumkin: sahifa ochilishi bilan serverni uyg'otamiz (javob kerak emas)
     try { fetch(CFG.API_BASE + '/health', { mode: 'no-cors' }); } catch { /* */ }
+    loadTariff();
     try {
       const r = await fetch('/menu.json', { cache: 'no-cache' });
       if (!r.ok) throw new Error(String(r.status));
@@ -338,7 +434,7 @@
       for (const id of Object.keys(cart)) if (!byId.has(id)) delete cart[id];   // menyudan olib tashlangan taomlar
       saveCart();
     } catch { menuFailed = true; }
-    renderMenu(); renderMenuButtons(); renderCounters();
+    renderMenu(); renderLanding(); renderMenuButtons(); renderCounters();
     setInterval(updateBanner, 60000);
   }
   init();

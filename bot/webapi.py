@@ -25,12 +25,16 @@ import aiohttp
 from aiogram.types import User
 from aiohttp import web
 
+from delivery import valid_point
 from orderapi import WindowLimiter, client_ip
 from validators import PHONE_RE, extract_ref
 
 logger = logging.getLogger(__name__)
 
 WEB_ORDERS_PATH = "/api/web-orders"
+WEB_CONFIG_PATH = "/api/web-config"   # GET: yetkazish tarifi (ochiq, keshlanadi)
+WEB_QUOTE_PATH = "/api/web-quote"     # GET ?lat=&lon=: aniq masofa va yetkazish narxi
+QUOTE_LIMIT = 20                      # IP boshiga daqiqasiga
 MAX_BODY_BYTES = 8 * 1024
 IP_LIMIT = 6                  # IP boshiga 10 daqiqada so'rovlar (muvaffaqiyatsizlari ham hisobga olinadi)
 IP_WINDOW_SECONDS = 600.0
@@ -57,13 +61,17 @@ class WebOrderAPI:
     def __init__(self, *, bot: Any, config: Any, menu_store: Any, db: Any, limiter: Any,
                  ready: asyncio.Event | None = None, process: Callable[..., Any] | None = None,
                  origins: frozenset[str] | None = None, turnstile_secret: str | None = None,
-                 verify_captcha: Callable[..., Any] | None = None,
+                 verify_captcha: Callable[..., Any] | None = None, delivery: Any = None,
                  monotonic: Callable[[], float] | None = None) -> None:
         if process is None:
             import handlers
             process = handlers.process_order
         self._bot, self._config, self._menu_store, self._db = bot, config, menu_store, db
         self._limiter = limiter
+        if delivery is None:
+            import handlers
+            delivery = handlers.default_delivery(config)
+        self._delivery = delivery
         self._ready = ready
         self._process = process
         self._origins = origins if origins is not None else site_origins()
@@ -71,6 +79,7 @@ class WebOrderAPI:
         self._verify_captcha = verify_captcha or self._turnstile
         kwargs = {"clock": monotonic} if monotonic else {}
         self.ip_limiter = WindowLimiter(IP_LIMIT, IP_WINDOW_SECONDS, **kwargs)
+        self.quote_limiter = WindowLimiter(QUOTE_LIMIT, 60.0, **kwargs)
         self._locks: dict[tuple[int, str], asyncio.Lock] = {}
         if not self._secret:
             logger.warning("TURNSTILE_SECRET berilmagan - sayt buyurtmalari faqat IP cheklovi bilan himoyalangan")
@@ -78,6 +87,10 @@ class WebOrderAPI:
     def register(self, app: web.Application) -> None:
         app.router.add_route("POST", WEB_ORDERS_PATH, self.handle_create)
         app.router.add_route("OPTIONS", WEB_ORDERS_PATH, self.handle_preflight)
+        app.router.add_route("GET", WEB_CONFIG_PATH, self.handle_config)
+        app.router.add_route("GET", WEB_QUOTE_PATH, self.handle_quote)
+        app.router.add_route("OPTIONS", WEB_CONFIG_PATH, self.handle_get_preflight)
+        app.router.add_route("OPTIONS", WEB_QUOTE_PATH, self.handle_get_preflight)
 
     def _origin(self, request: web.Request) -> str | None:
         origin = request.headers.get("Origin", "").lower().rstrip("/")
@@ -98,6 +111,38 @@ class WebOrderAPI:
             "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "POST",
             "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600", "Vary": "Origin",
         })
+
+    async def handle_get_preflight(self, request: web.Request) -> web.Response:
+        origin = self._origin(request)
+        if not origin:
+            return web.Response(status=403)
+        return web.Response(status=204, headers={
+            "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Max-Age": "600", "Vary": "Origin",
+        })
+
+    async def handle_config(self, request: web.Request) -> web.Response:
+        """Yetkazish tarifi (sayt matnlari uchun): {"base_km", "base_fee", "extra_per_km"}."""
+        if self._origin(request) is None:
+            return self._json(request, 403, {"error": "forbidden"})
+        return self._json(request, 200, self._delivery.tariff.as_json(), **{"Cache-Control": "public, max-age=3600"})
+
+    async def handle_quote(self, request: web.Request) -> web.Response:
+        """Joylashuv bo'yicha aniq yetkazish narxi: {"km", "fee", "approx"} (hisob serverda, buyurtmadagi bilan bir xil)."""
+        if self._origin(request) is None:
+            return self._json(request, 403, {"error": "forbidden"})
+        wait = self.quote_limiter.retry_after(client_ip(request))
+        if wait > 0:
+            return self._json(request, 429, {"error": "too_many_requests"}, **{"Retry-After": str(max(1, round(wait)))})
+        try:
+            lat, lon = float(request.query.get("lat", "")), float(request.query.get("lon", ""))
+        except ValueError:
+            return self._json(request, 400, {"error": "bad_request"})
+        if not valid_point(lat, lon):
+            return self._json(request, 400, {"error": "bad_request"})
+        import handlers
+        quote = await handlers.safe_quote(self._delivery, lat, lon)
+        return self._json(request, 200, quote.as_json())
 
     async def _turnstile(self, token: str, ip: str) -> bool:
         try:
@@ -165,7 +210,7 @@ class WebOrderAPI:
                 outcome = await self._process(
                     bot=self._bot, config=self._config, menu_store=self._menu_store, db=self._db,
                     limiter=self._limiter, user=user, raw=json.dumps(data, ensure_ascii=False),
-                    lang=lang, reply=reply)
+                    lang=lang, reply=reply, delivery=self._delivery)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Sayt buyurtmasi qayta ishlanmadi (%s)", type(exc).__name__)
             return self._json(request, 503, {"error": "unavailable"})
