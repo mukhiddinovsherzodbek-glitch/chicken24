@@ -22,6 +22,7 @@ from aiogram.types import (
     BotCommandScopeAllPrivateChats,
     BotCommandScopeChat,
     BotCommandScopeDefault,
+    MenuButtonCommands,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,13 @@ async def apply_commands(bot: Bot, admin_id: int) -> None:
         await bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())
     except Exception as exc:  # bo'sh ro'yxat qabul qilinmasa ham - 1-qadamda tozalangan, Default ham bo'sh
         logger.debug("Guruhlar uchun bo'sh menyu o'rnatilmadi: %s", exc)
+
+    # 2c) Matn maydoni yonidagi menyu tugmasi (standart, hamma chatlar): buyruqlar ro'yxati.
+    # BotFather'da Mini App tugmasi qo'yilgan bo'lsa ham shu bilan almashtiriladi (buyurtma - inline tugmada)
+    try:
+        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception:
+        logger.exception("Standart menyu tugmasini (buyruqlar ro'yxati) o'rnatib bo'lmadi")
 
     # 3) Admin uchun: to'liq ro'yxat
     try:

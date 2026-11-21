@@ -490,7 +490,7 @@ def test_fallback_text_in_customer_language():
     assert "«Сделать заказ»" in ru and "«Buyurtma berish»" in uz
     assert order_button(ru_kb).text == "Сделать заказ" and order_button(uz_kb).text == "Buyurtma berish"
     assert bot.kb_removed == [5], "pastki klaviatura BIR MARTA olib tashlanadi (har xabarda '⌛' chiqmaydi)"
-    assert [b.text for _, b in bot.menu_buttons] == ["Заказ", "Buyurtma"], "menyu tugmasi faqat til o'zgarganda"
+    assert [(c, b.type) for c, b in bot.menu_buttons] == [(5, "commands")], "menyu tugmasi bir marta: buyruqlar"
 
 
 if __name__ == "__main__":

@@ -405,17 +405,15 @@ def test_start_and_til_inline_button_menu_button_and_keyboard_removed():
     (removed, menus, photos, deleted), all_menus, til_msg, all_removed = run(go())
     assert removed == [USER] and deleted, "pastki klaviatura olib tashlandi (yordamchi xabar o'chirildi)"
     chat_id, menu = menus[0]
-    assert chat_id == USER and menu.type == "web_app" and menu.text == "Заказ"
-    assert parse_qs(urlparse(menu.web_app.url).query) == {"lang": ["ru"]}
+    assert chat_id == USER and menu.type == "commands", "menyu tugmasi - buyruqlar ro'yxati (Mini App emas)"
     _, caption, markup = photos[0]
     assert caption.startswith("Здравствуйте")
     button = order_button(markup)
     assert button.text == "Сделать заказ" and parse_qs(urlparse(button.web_app.url).query) == {"lang": ["ru"]}
-    # /til: menyu tugmasi yangi tilda, tasdiq ostida inline tugma
-    assert all_menus[-1][1].text == "Buyurtma" and parse_qs(urlparse(all_menus[-1][1].web_app.url).query) == {"lang": ["uz"]}
+    # /til: tasdiq ostida inline tugma; menyu tugmasi qayta o'rnatilmaydi
     assert til_msg[2].startswith("✅ Til o'zgartirildi") and order_button(til_msg[3]["reply_markup"]).text == "Buyurtma berish"
     assert all_removed == [USER], "pastki klaviatura bir marta olib tashlanadi (/til da qayta '⌛' yo'q)"
-    assert len(all_menus) == 2, "menyu tugmasi faqat til o'zgarganda qayta o'rnatiladi"
+    assert len(all_menus) == 1, "menyu tugmasi bir marta o'rnatiladi (til o'zgarganda ham qayta emas)"
 
 
 def test_old_keyboard_order_still_works_and_migrates_customer():
@@ -431,7 +429,7 @@ def test_old_keyboard_order_still_works_and_migrates_customer():
     answers, bot = run(go())
     assert answers[0][0].startswith("✅") and order_button(answers[0][1]).text == "Buyurtma berish"
     assert answers[1][1].inline_keyboard[0][0].callback_data == "cancel:1", "bekor qilish tugmasi saqlandi"
-    assert bot.kb_removed == [USER] and bot.menu_buttons and bot.menu_buttons[0][1].text == "Buyurtma"
+    assert bot.kb_removed == [USER] and [b.type for _, b in bot.menu_buttons] == ["commands"]
 
 
 if __name__ == "__main__":

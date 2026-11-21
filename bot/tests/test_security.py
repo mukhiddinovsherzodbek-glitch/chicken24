@@ -324,7 +324,7 @@ def test_keyboard_removed_once_and_failed_attempt_is_retried():
         steps = []
         for lang in ("uz", "uz", "uz", "ru", "ru"):
             await handlers.switch_to_inline(bot, env.config, env.db, 5, lang)
-            steps.append((list(bot.kb_removed), [b.text for _, b in bot.menu_buttons]))
+            steps.append((list(bot.kb_removed), [b.type for _, b in bot.menu_buttons]))
         # boshqa bot nusxasi (qayta ishga tushish) - holat nollanadi
         fresh = FakeBot()
         await handlers.switch_to_inline(fresh, env.config, env.db, 5, "ru")
@@ -332,10 +332,10 @@ def test_keyboard_removed_once_and_failed_attempt_is_retried():
         return steps, fresh
 
     steps, fresh = run(go())
-    assert steps[0] == ([], ["Buyurtma"]), "birinchi urinish yiqildi - eslab qolinmaydi"
-    assert steps[1] == ([5], ["Buyurtma"]), "ikkinchi urinishda olib tashlandi; menyu tugmasi qayta o'rnatilmadi"
+    assert steps[0] == ([], ["commands"]), "birinchi urinish yiqildi - eslab qolinmaydi"
+    assert steps[1] == ([5], ["commands"]), "ikkinchi urinishda olib tashlandi; menyu tugmasi qayta o'rnatilmadi"
     assert steps[2] == steps[1], "uchinchi safar hech narsa yuborilmaydi"
-    assert steps[3] == ([5], ["Buyurtma", "Заказ"]), "til o'zgardi - faqat menyu tugmasi"
+    assert steps[3] == steps[1], "til o'zgarsa ham menyu tugmasi qayta o'rnatilmaydi (buyruqlar - tilsiz)"
     assert steps[4] == steps[3]
     assert fresh.kb_removed == [5] and len(fresh.menu_buttons) == 1
 

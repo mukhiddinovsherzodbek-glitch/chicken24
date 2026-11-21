@@ -29,6 +29,7 @@ class MenuBot:
         self.menus: dict[str, list[str]] = {}
         self.deleted: list[tuple[str, str | None]] = []
         self.fail_admin_scope = fail_admin_scope
+        self.menu_buttons: list = []  # (chat_id, menu_button)
 
     @staticmethod
     def _key(scope) -> str:
@@ -38,6 +39,9 @@ class MenuBot:
         if self.fail_admin_scope and scope.type == "chat":
             raise RuntimeError("Bad Request: chat not found (sinov)")
         self.menus[self._key(scope)] = [c.command for c in cmds]
+
+    async def set_chat_menu_button(self, chat_id=None, menu_button=None, **kw):
+        self.menu_buttons.append((chat_id, menu_button))
 
     async def delete_my_commands(self, scope=None, language_code=None, **kw):
         if self.fail_admin_scope and scope.type == "chat":
@@ -59,6 +63,8 @@ def test_customer_menu_start_til_taklif_admin_full_list():
     assert "default" not in bot.menus
     assert bot.menus["chat:999"] == ADMIN_NAMES
     assert "guruh_id" not in bot.menus["chat:999"], "/guruh_id menyuda ko'rinmaydi"
+    # Matn maydoni yonidagi standart tugma - buyruqlar ro'yxati (Mini App "Buyurtma" emas)
+    assert [(c, b.type) for c, b in bot.menu_buttons] == [(None, "commands")]
     # Eski buyruqlar barcha umumiy scope'lar va tillarda tozalangan
     scopes = {s for s, _ in bot.deleted}
     assert {"default", "all_private_chats", "all_group_chats", "all_chat_administrators", "chat:999"} <= scopes

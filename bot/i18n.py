@@ -36,7 +36,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn.order": "Buyurtma berish",
         "btn.feedback": "Taklif va shikoyat",
         "feedback.text": "💬 Taklif yoki shikoyatingiz bo'lsa, bizga yozing — albatta ko'rib chiqamiz 👇",
-        "menu.btn": "Buyurtma",  # matn maydoni yonidagi menyu tugmasi (qisqa)
         "currency": "so'm",
         # --- buyurtma rad etildi
         "order.closed": (
@@ -133,7 +132,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn.order": "Сделать заказ",
         "btn.feedback": "Предложения и жалобы",
         "feedback.text": "💬 Если у вас есть предложение или жалоба, напишите нам — мы обязательно рассмотрим 👇",
-        "menu.btn": "Заказ",
         "currency": "сум",
         "order.closed": (
             "⛔ Заказ не принят.\nПричина: сейчас мы закрыты. Мы работаем с {open} до {close}.\n\n"

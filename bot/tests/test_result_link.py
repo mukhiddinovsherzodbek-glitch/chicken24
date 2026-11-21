@@ -255,7 +255,7 @@ def test_order_and_rejection_timestamps_strictly_increase():
 
 
 def test_url_built_only_in_build_webapp_url():
-    """Mini App havolasi bitta joyda: build_webapp_url -> webapp_info -> (inline tugma, menyu tugmasi)."""
+    """Mini App havolasi bitta joyda: build_webapp_url -> webapp_info -> inline tugma (menyu tugmasi - buyruqlar)."""
     src = (BOT_DIR / "handlers.py").read_text(encoding="utf-8")
     assert src.count("WebAppInfo(") == 1, "WebAppInfo faqat webapp_info ichida"
     calls = [m.start() for m in re.finditer(r"webapp_url_with_result\(", src)]
@@ -264,7 +264,8 @@ def test_url_built_only_in_build_webapp_url():
     assert "webapp_url_with_result(" in body and "config.webapp_url" in body
     assert src.count("config.webapp_url") == 1
     assert src.count("await build_webapp_url(") == 1  # faqat webapp_info ichida
-    assert src.count("await webapp_info(") == 2      # inline tugma (order_keyboard) va menyu tugmasi
+    assert src.count("await webapp_info(") == 1      # faqat inline tugma (order_keyboard)
+    assert "MenuButtonWebApp" not in src, "matn maydoni yonidagi tugma Mini App emas"
     assert "ReplyKeyboardMarkup" not in src and "KeyboardButton(" not in src.replace("InlineKeyboardButton(", "")
     for other in BOT_DIR.glob("*.py"):
         if other.name != "handlers.py":

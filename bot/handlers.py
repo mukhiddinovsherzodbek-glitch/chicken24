@@ -32,7 +32,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     LinkPreviewOptions,
-    MenuButtonWebApp,
+    MenuButtonCommands,
     Message,
     ReplyKeyboardRemove,
     ReplyParameters,
@@ -115,7 +115,7 @@ class BotState:
 
     def __init__(self) -> None:
         self.kb_removed: set[int] = set()       # eski pastki klaviaturasi olib tashlangan mijozlar
-        self.menu_lang: dict[int, str] = {}     # mijoz -> menyu tugmasi o'rnatilgan til
+        self.menu_set: set[int] = set()         # menyu tugmasi "buyruqlar ro'yxati"ga almashtirilgan mijozlar
         self.notice_same = WindowLimiter(1, ADMIN_NOTICE_COOLDOWN_SECONDS)
         self.notice_all = WindowLimiter(*ADMIN_NOTICE_BURST)
 
@@ -242,16 +242,11 @@ async def remove_reply_keyboard(bot: Bot, chat_id: int) -> bool:
     return True
 
 
-async def set_menu_button(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> bool:
-    """Matn maydoni yonidagi menyu tugmasi (shu mijoz chati uchun): "Buyurtma" / "Заказ" -> Mini App.
-    O'rnatilgan bo'lsa True."""
-    lang = i18n.normalize(lang)
+async def set_menu_button(bot: Bot, user_id: int) -> bool:
+    """Matn maydoni yonidagi menyu tugmasi (shu mijoz chati uchun): buyruqlar ro'yxati (/start, /til, /taklif).
+    Avval shu chatga o'rnatilgan "Buyurtma" (Mini App) tugmasini ham almashtiradi. O'rnatilgan bo'lsa True."""
     try:
-        await bot.set_chat_menu_button(
-            chat_id=user_id,
-            menu_button=MenuButtonWebApp(text=t(lang, "menu.btn"),
-                                         web_app=await webapp_info(config, db, user_id, lang, with_result=False)),
-        )
+        await bot.set_chat_menu_button(chat_id=user_id, menu_button=MenuButtonCommands())
     except Exception:
         logger.exception("Menyu tugmasi o'rnatilmadi (user_id=%s)", user_id)
         return False
@@ -259,20 +254,19 @@ async def set_menu_button(bot: Bot, config: Config, db: Database | None, user_id
 
 
 async def switch_to_inline(bot: Bot, config: Config, db: Database | None, user_id: int, lang: str | None) -> None:
-    """Mijozni yangi interfeysga o'tkazish: pastki klaviatura olib tashlanadi, menyu tugmasi o'rnatiladi.
+    """Mijozni yangi interfeysga o'tkazish: pastki klaviatura olib tashlanadi, menyu tugmasi - buyruqlar ro'yxati.
 
-    Har mijoz uchun BIR MARTA (jarayon ishlab turganda): klaviatura bir marta olib tashlanadi, menyu tugmasi esa
-    faqat til o'zgarganda qayta o'rnatiladi. Aks holda har bir oddiy xabarda chatda "⌛" lip etib ko'rinib-yo'qolardi
+    Har mijoz uchun BIR MARTA (jarayon ishlab turganda): klaviatura ham, menyu tugmasi ham bir marta. Aks holda har bir oddiy xabarda chatda "⌛" lip etib ko'rinib-yo'qolardi
     va javobdan oldin Telegram'ga 3 ta ortiqcha so'rov ketardi. Muvaffaqiyatsiz urinish eslab qolinmaydi."""
     state = bot_state(bot)
     lang = i18n.normalize(lang)
-    if len(state.kb_removed) > _UI_CACHE_MAX or len(state.menu_lang) > _UI_CACHE_MAX:
+    if len(state.kb_removed) > _UI_CACHE_MAX or len(state.menu_set) > _UI_CACHE_MAX:
         state.kb_removed.clear()
-        state.menu_lang.clear()
+        state.menu_set.clear()
     if user_id not in state.kb_removed and await remove_reply_keyboard(bot, user_id):
         state.kb_removed.add(user_id)
-    if state.menu_lang.get(user_id) != lang and await set_menu_button(bot, config, db, user_id, lang):
-        state.menu_lang[user_id] = lang
+    if user_id not in state.menu_set and await set_menu_button(bot, user_id):
+        state.menu_set.add(user_id)
 
 
 WELCOME_FLAG = "w"  # callback_data "lang:ru:w" - til tanlangach salomlashuv yuboriladi (/start dan)

@@ -52,7 +52,7 @@ class FakeBot:
         self.fail_admin = fail_admin
         self.kb_removed: list[int] = []      # ReplyKeyboardRemove yuborilgan chatlar
         self.deleted: list[tuple] = []
-        self.menu_buttons: list[tuple] = []  # (chat_id, MenuButtonWebApp)
+        self.menu_buttons: list[tuple] = []  # (chat_id, MenuButtonCommands)
 
     async def send_message(self, chat_id, text, **kw):
         if self.fail_admin and chat_id == 999:

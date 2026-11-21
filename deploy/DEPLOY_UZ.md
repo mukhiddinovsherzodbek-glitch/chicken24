@@ -489,12 +489,11 @@ bo'lsa savat bir necha soniyada tozalanadi; olmagan bo'lsa 10 daqiqadan keyin "B
 - Pastdagi doimiy (reply) klaviatura **olib tashlandi**. "Buyurtma berish / Сделать заказ" endi xabar **ostidagi
   inline tugma**: salomlashuv rasmi ostida, `/til` tasdig'i, buyurtma qabul qilindi / rad etildi / bekor qilindi
   xabarlari ostida. "❌ Buyurtmani bekor qilish" tugmasi alohida xabarda qoladi (5 daqiqa).
-- Matn maydoni yonida **menyu tugmasi** — "Buyurtma" / "Заказ" (mijoz tilida, til tanlanganda va `/til` dan keyin
-  shu mijoz uchun yangilanadi).
+- Matn maydoni yonidagi **menyu tugmasi** — buyruqlar ro'yxati (`/start`, `/til`, `/taklif`). Avval u yerda
+  "Buyurtma" / "Заказ" (Mini App) bor edi — I bo'limiga qarang.
 - **Eski mijozlar:** botga istalgan matn yozsa yoki eski pastki tugma orqali buyurtma bersa — bot pastki
-  klaviaturani olib tashlaydi, menyu tugmasini o'rnatadi va inline tugma yuboradi.
-  Klaviatura har mijoz uchun **bir marta** olib tashlanadi (chatda qisqa "⌛" ko'rinib-yo'qoladi), menyu tugmasi
-  esa faqat til o'zgarganda qayta o'rnatiladi. Bot qayta ishga tushsa, har mijozda yana bir martadan takrorlanadi.
+  klaviaturani olib tashlaydi, menyu tugmasini buyruqlar ro'yxatiga almashtiradi va inline tugma yuboradi.
+  Klaviatura ham, menyu tugmasi ham har mijoz uchun **bir marta** (chatda qisqa "⌛" ko'rinib-yo'qoladi). Bot qayta ishga tushsa, har mijozda yana bir martadan takrorlanadi.
 
 **Nega HTTP:** inline/menyu tugmasidan ochilgan Mini App'da `sendData()` ishlamaydi, lekin Telegram **initData**
 beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://chicken24-bot.onrender.com/api/orders`.
@@ -525,10 +524,10 @@ beradi. Shuning uchun Mini App buyurtmani bot serveriga yuboradi: `POST https://
   Bekor qilish muddati o'tgach (15 daqiqadan keyin) holat yakuniy hisoblanadi va boshqa so'ralmaydi.
 
 **Telegram'da sinash:**
-1. `/start` → til → salomlashuv rasmi ostida "Buyurtma berish"; pastki klaviatura yo'qolgan; matn maydoni yonida "Buyurtma".
+1. `/start` → til → salomlashuv rasmi ostida "Buyurtma berish"; pastki klaviatura yo'qolgan; matn maydoni yonida buyruqlar ro'yxati.
 2. Inline tugmadan buyurtma → Mini App yopiladi → bot chatida tasdiq + bekor qilish tugmasi; admin'ga chek.
 3. Hududdan tashqari lokatsiya (yoki ish vaqtidan tashqari) → Mini App ochiq, savat ustida sabab, chatda ham xabar.
-4. Menyu tugmasidan ham buyurtma bering. `/til` → menyu tugmasi matni tilga mos o'zgaradi.
+4. Menyu tugmasi (matn maydoni yonida) bosilganda buyruqlar ro'yxati chiqadi.
 5. Eski chat (pastki tugma bor edi) → istalgan matn yozing → pastki tugma yo'qoladi, inline tugma keladi.
 
 **Xavflar:**
@@ -720,3 +719,7 @@ Narxni avvalgidek qat'iy 10 000 so'm qilish kerak bo'lsa: `DELIVERY_EXTRA_PER_KM
   (`@` bilan yoki `@` siz; 5–32 belgi: harf, raqam, `_`). Berilmasa — `Chicken24_uz`. Saqlang → Render qayta ishga
   tushiradi. Noto'g'ri qiymatda bot ishga tushmaydi va logda `FEEDBACK_USERNAME` xatosi chiqadi.
 - Mention bildirishnomasi borishi uchun o'sha akkaunt guruh a'zosi bo'lishi kerak.
+- Matn maydoni yonidagi tugma endi **buyruqlar ro'yxati** ("Buyurtma" Mini App tugmasi olib tashlandi; buyurtma —
+  xabar ostidagi inline "Buyurtma berish"dan). Bot ishga tushganda standart tugma buyruqlar ro'yxatiga qo'yiladi
+  (@BotFather'dagi Menu Button sozlamasi ham shu bilan almashtiriladi). Avval "Buyurtma" o'rnatilgan eski
+  mijozlarda u keyingi `/start` → til tanlashda (yoki `/til`, yoki botga istalgan matn yozganda) almashadi.
