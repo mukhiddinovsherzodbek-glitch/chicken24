@@ -388,3 +388,14 @@ legend{font-weight:600;font-size:15px;padding:0 0 6px}
     var(--img-wings) 0 var(--bgy-lavash,4500px)/420px auto no-repeat,
     var(--img-extra) 100% var(--bgy-qoshimchalar,6000px)/420px auto no-repeat}
 }
+
+/* NOUTBUK/PLANSHET: fon rasmlari ham o'z kategoriyasi boshida (site.js placeMenuBg -> --bgy-*).
+   Tomonlar navbatma-navbat (burger o'ng, lavash chap, pitsa o'ng, chicken chap, qo'shimchalar o'ng) - rasmlar ustma-ust tushmaydi */
+@media (min-width:721px){
+  .band-menu::after{background:
+    var(--img-menu) 100% var(--bgy-burger,0px)/760px auto no-repeat,
+    var(--img-end) 100% var(--bgy-pizza,1300px)/760px auto no-repeat,
+    var(--img-hero) 0 var(--bgy-chicken,2600px)/760px auto no-repeat,
+    var(--img-wings) 0 var(--bgy-lavash,3900px)/760px auto no-repeat,
+    var(--img-extra) 100% var(--bgy-qoshimchalar,5200px)/760px auto no-repeat}
+}

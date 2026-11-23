@@ -206,8 +206,8 @@
     }
   }
   // Menyu balandligi o'zgarganda (tugmalar, shriftlar, til, ekran kengligi) - qayta joylash
-  let bgFrame = 0;
-  const schedBg = () => { cancelAnimationFrame(bgFrame); bgFrame = requestAnimationFrame(placeMenuBg); };
+  let bgTimer = 0;
+  const schedBg = () => { clearTimeout(bgTimer); bgTimer = setTimeout(placeMenuBg, 60); };
   if ('ResizeObserver' in window && $('menuList')) new ResizeObserver(schedBg).observe($('menuList'));
   window.addEventListener('resize', schedBg);
   window.addEventListener('load', schedBg);
