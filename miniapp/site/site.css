@@ -356,4 +356,25 @@ legend{font-weight:600;font-size:15px;padding:0 0 6px}
 
 /* narx rasm ustida emas - rasm tagida, kartaning matn qismi eng tepasida */
 .card-price{align-self:flex-start;padding:4px 12px;border-radius:999px;background:var(--ac);color:var(--act);font-weight:800;font-size:15px;line-height:1.3;white-space:nowrap}
-@media (max-width:720px){.card-price{padding:3px 10px;font-size:13px}}
+@media (max-width:720px){.card-price{padding:3px 9px;font-size:13px}}
+
+/* TELEFON: ixcham menyu kartasi - "+" narx qatorida o'ngda, balandlik tarkibga qarab, rasm o'rtada.
+   Faqat telefon (<=720px, saytdagi telefon chegarasi): 721px dan kattada (planshet/noutbuk) ta'sir qilmaydi. */
+@media (max-width:720px){
+  .card{align-items:center;min-height:0}
+  .card-im{align-self:center;flex:0 0 104px;width:104px;height:104px;margin:0 0 0 10px;border-radius:12px;overflow:hidden}
+  .card-im img{width:104px;height:104px;min-height:0;aspect-ratio:1/1;object-fit:contain}
+  .card-b{flex-direction:row;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:6px;padding:10px 12px;min-height:0}
+  .card-b > *{order:2;flex:1 1 100%;min-width:0}
+  .card-b > .card-price{order:0;flex:0 0 auto;align-self:center}
+  .card-b > .card-f{order:1;flex:0 0 auto;margin:0 0 0 auto;padding:0}
+  .card .add{width:44px;height:44px;border-radius:12px;font-size:22px}
+  .card .step button{width:36px;height:36px;border-radius:11px;font-size:20px}
+  .card .step{gap:4px}
+  .card .step b{min-width:16px}
+  /* pastki tugmalar: "Telegram" va "Taklif va shikoyat" o'rni almashgan */
+  .foot-btns > .fbtn:nth-child(1){order:1}
+  .foot-btns > .fbtn:nth-child(4){order:2}
+  .foot-btns > .fbtn:nth-child(3){order:3}
+  .foot-btns > .fbtn:nth-child(2){order:4}
+}
