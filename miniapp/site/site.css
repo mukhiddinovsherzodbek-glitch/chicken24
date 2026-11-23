@@ -378,3 +378,13 @@ legend{font-weight:600;font-size:15px;padding:0 0 6px}
   .foot-btns > .fbtn:nth-child(3){order:3}
   .foot-btns > .fbtn:nth-child(2){order:4}
 }
+
+/* TELEFON: fon rasmlari o'z kategoriyasi boshida (site.js placeMenuBg -> --bgy-*); JS bo'lmasa - avvalgi joylar */
+@media (max-width:720px){
+  .band-menu::after{background:
+    var(--img-menu) 100% var(--bgy-burger,0px)/420px auto no-repeat,
+    var(--img-end) 0 var(--bgy-pizza,1500px)/420px auto no-repeat,
+    var(--img-hero) 100% var(--bgy-chicken,3000px)/420px auto no-repeat,
+    var(--img-wings) 0 var(--bgy-lavash,4500px)/420px auto no-repeat,
+    var(--img-extra) 100% var(--bgy-qoshimchalar,6000px)/420px auto no-repeat}
+}

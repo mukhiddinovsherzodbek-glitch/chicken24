@@ -191,7 +191,27 @@
       p.replaceWith(ul);
     });
     spyCats();
+    placeMenuBg();
   }
+  // Menyu fonidagi taom rasmlari o'z kategoriyasi boshida turadi (qat'iy px emas - menyu o'zgarsa ham siljimaydi).
+  // CSS o'zgaruvchilari: --bgy-<kategoriya> = bo'lim boshining .band-menu ichidagi y koordinatasi
+  const BG_CATS = ['burger', 'pizza', 'chicken', 'lavash', 'qoshimchalar'];
+  function placeMenuBg() {
+    const band = document.querySelector('.band-menu');
+    if (!band) return;
+    const top = band.getBoundingClientRect().top;
+    for (const id of BG_CATS) {
+      const sec = document.getElementById('cat-' + id);
+      if (sec) band.style.setProperty('--bgy-' + id, Math.round(sec.getBoundingClientRect().top - top) + 'px');
+    }
+  }
+  // Menyu balandligi o'zgarganda (tugmalar, shriftlar, til, ekran kengligi) - qayta joylash
+  let bgFrame = 0;
+  const schedBg = () => { cancelAnimationFrame(bgFrame); bgFrame = requestAnimationFrame(placeMenuBg); };
+  if ('ResizeObserver' in window && $('menuList')) new ResizeObserver(schedBg).observe($('menuList'));
+  window.addEventListener('resize', schedBg);
+  window.addEventListener('load', schedBg);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedBg);
   // Pastga aylantirganda tepadagi kategoriya tugmasi yonib turadi
   let spy = null;
   function spyCats() {
