@@ -190,3 +190,166 @@ legend{font-weight:600;font-size:15px;padding:0 0 6px}
   .chips{gap:5px}
   .chip{min-height:34px;padding:4px 11px;font-size:13px}
 }
+
+/* ===================== Dizayn 2: har bo'lim o'z foni bilan ===================== */
+:root{--deep:#150608;--gold-d:#E39A12;--img-hero:url(/assets/products/oila_kombo/19_samlab_firmenniy_kombo.webp);--img-menu:url(/assets/products/burgers/01_chicken_burger.webp);--img-end:url(/assets/products/pizza/01_pizza_margarita.webp)}
+.band{position:relative;isolation:isolate;overflow-x:clip}
+.band::before,.band::after{content:'';position:absolute;pointer-events:none;z-index:-1}
+
+/* 1. Bosh ekran: iliq yorug'lik + xira tovuq rasmi */
+.band-hero{background:radial-gradient(60% 90% at 88% 10%,rgba(245,181,46,.26),transparent 62%),radial-gradient(55% 70% at 0% 100%,rgba(176,34,52,.38),transparent 70%),var(--bg)}
+.band-hero::before{inset:0 0 0 38%;background:var(--img-hero) center/cover no-repeat;opacity:.16;filter:blur(10px) saturate(1.2);-webkit-mask-image:linear-gradient(90deg,transparent,#000 45%,#000 70%,transparent);mask-image:linear-gradient(90deg,transparent,#000 45%,#000 70%,transparent)}
+.band-hero::after{left:0;right:0;bottom:0;height:90px;background:linear-gradient(transparent,#240B0F)}
+
+/* 2. Kategoriyalar: biroz yorqinroq bordo, diagonal to'r */
+.band-tiles{background:repeating-linear-gradient(135deg,rgba(255,255,255,.028) 0 2px,transparent 2px 22px),#240B0F;border-top:1px solid #4A1D25;padding-top:72px}
+.band-tiles .tiles-sec{padding-bottom:80px}
+
+/* 3. Qanday buyurtma beriladi: oltin lenta */
+.band-how{background:linear-gradient(120deg,#F9C54A 0%,var(--ac) 45%,var(--gold-d) 100%);color:var(--act)}
+.band-how::before{inset:0;background:radial-gradient(circle at 1px 1px,rgba(42,10,14,.14) 1.4px,transparent 1.6px) 0 0/22px 22px}
+.band-how .how{padding-top:64px;padding-bottom:64px}
+.band-how .h2{color:var(--act)}
+.band-how .steps h3{color:var(--act)}
+.band-how .steps p{color:rgba(42,10,14,.82)}
+.band-how .n{border-color:var(--act);color:var(--act);background:rgba(255,255,255,.28)}
+
+/* 4. Menyu: eng qorong'i fon, nuqtali to'r, tepada xira burger rasmi */
+.band-menu{background:radial-gradient(70% 420px at 50% 0,rgba(176,34,52,.28),transparent 70%),var(--deep)}
+.band-menu::before{inset:0;background:radial-gradient(circle at 1px 1px,rgba(245,181,46,.09) 1.2px,transparent 1.4px) 0 0/26px 26px}
+.band-menu::after{left:0;right:0;top:0;height:560px;background:var(--img-menu) center 30%/cover no-repeat;opacity:.10;filter:blur(16px);-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
+.wrap.wide{max-width:1480px}
+.band-menu .menu{padding-top:44px}
+
+/* kategoriya paneli: shisha ko'rinishida, faol tugma yonib turadi */
+.cats{top:70px;margin:0 -8px 4px;padding:12px 8px;gap:10px;background:rgba(21,6,8,.78);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid rgba(245,181,46,.22);scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cats a{background:rgba(62,23,29,.7);border-color:#6A2F38;transition:background .2s,color .2s,border-color .2s}
+.cats a[aria-current]{background:var(--ac);border-color:var(--ac);color:var(--act)}
+.sec{padding-top:44px;scroll-margin-top:150px}
+.sec h2{font-size:clamp(26px,3vw,34px)}
+.sec h2::before{content:'';flex:none;align-self:center;width:8px;height:28px;border-radius:4px;background:var(--ac)}
+
+/* 5. Oxirgi chaqiriq: oltin + xira pitsa rasmi */
+.finale{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(110deg,#F9C54A,var(--ac) 50%,var(--gold-d))}
+.finale::before{content:'';position:absolute;z-index:-1;top:0;bottom:0;right:0;width:46%;background:var(--img-end) center/cover no-repeat;opacity:.28;mix-blend-mode:multiply;-webkit-mask-image:linear-gradient(90deg,transparent,#000);mask-image:linear-gradient(90deg,transparent,#000)}
+
+/* pastki qism */
+.foot-band{background:#0F0406;border-top:1px solid #3A1920}
+.foot{padding-top:34px;padding-bottom:34px;gap:20px 32px}
+.foot-brand{display:flex;flex-direction:column;gap:2px}
+.foot-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.fbtn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:10px 20px;border-radius:14px;border:1px solid #6A2F38;background:rgba(62,23,29,.55);color:var(--tx);text-decoration:none;font-weight:700;font-size:15px;transition:background .2s,border-color .2s,color .2s,transform .2s}
+.fbtn:hover{border-color:var(--ac);color:var(--ac);transform:translateY(-2px)}
+.fbtn.gold{background:var(--ac);border-color:var(--ac);color:var(--act)}
+.fbtn.gold:hover{background:#FFD36B;color:var(--act)}
+.fbtn.icon{width:48px;padding:0}
+
+/* menyu kartalari: noutbukda 5 ta ustun, ixchamroq */
+@media (min-width:1100px){.grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}}
+@media (min-width:861px) and (max-width:1099px){.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
+@media (min-width:721px) and (max-width:860px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}}
+@media (min-width:721px){
+  .card{border-radius:18px;background:linear-gradient(180deg,#34141A,#2A0F14);border:1px solid #4A1D25;transition:transform .2s,border-color .2s,box-shadow .2s}
+  .card:hover{transform:translateY(-3px);border-color:rgba(245,181,46,.55);box-shadow:0 14px 30px -14px rgba(0,0,0,.8)}
+  .card-im .price{left:10px;bottom:10px;padding:4px 11px;font-size:14px}
+  .card-b{padding:11px 12px 12px;gap:5px}
+  .card h3{font-size:16px}
+  .card p{font-size:13px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .chip{min-height:30px;padding:3px 10px;font-size:13px}
+  .chips{gap:5px}
+  .card-f{padding-top:6px}
+}
+/* kombolar: tarkibi ustun bo'lib, har bir qism alohida qatorda */
+.parts{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:3px;color:var(--mu);font-size:13px;line-height:1.35}
+.parts li{position:relative;padding-left:14px}
+.parts li::before{content:'';position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--ac)}
+.facts li:nth-child(2){border:0;margin-right:0;padding-right:0}
+.facts li[data-fee]{flex-basis:100%;margin:6px 0 0;padding:0;border:0}
+
+/* savat tugmasi katta ekranda ham ko'rinadi: mijoz buyurtmasiz chiqib ketmasin */
+.cart-bar.on{display:flex}
+@media (min-width:721px){.cart-bar{left:auto;right:28px;bottom:24px;width:min(380px,calc(100% - 56px));box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 0 3px rgba(245,181,46,.25)}}
+
+@media (max-width:720px){
+  .band-hero::before{inset:0;opacity:.12}
+  .band-tiles{padding-top:44px}
+  .band-how .how{padding-top:44px;padding-bottom:44px}
+  .band-menu .menu{padding-top:24px}
+  .cats{top:60px}
+  .finale::before{width:100%;opacity:.16}
+  .foot-btns{width:100%}.fbtn:not(.icon){flex:1 1 100%}
+}
+
+/* ===================== Dizayn 3: yorqin rasmli fonlar, qora - krem - bordo - oltin almashinuvi ===================== */
+:root{--img-wings:url(/assets/products/chicken/01_original_wings_6dona.webp);--img-lavash:url(/assets/products/lavash/01_chicken_lavash.webp)}
+
+/* bosh ekran: o'ng tomonda rasm aniq ko'rinadi, chap tomon matn uchun qorong'i */
+.band-hero{background:linear-gradient(90deg,#1E0A0D 0%,#1E0A0D 36%,rgba(30,10,13,.55) 62%,rgba(30,10,13,.25) 100%),radial-gradient(60% 90% at 88% 10%,rgba(245,181,46,.22),transparent 62%),var(--bg)}
+.band-hero::before{inset:0 0 0 24%;background:var(--img-hero) center/cover no-repeat;opacity:.55;filter:blur(2px) saturate(1.15);-webkit-mask-image:linear-gradient(90deg,transparent,#000 40%);mask-image:linear-gradient(90deg,transparent,#000 40%)}
+.band-hero::after{height:120px;background:linear-gradient(transparent,#FFF1DC)}
+
+/* "Nima yeysiz?": krem fon */
+.band-tiles{background:repeating-linear-gradient(135deg,rgba(90,40,48,.05) 0 2px,transparent 2px 22px),#FFF1DC;border-top:0;padding-top:48px;color:var(--act)}
+.band-tiles .h2{color:var(--act)}
+.band-tiles .tile{box-shadow:0 14px 30px -16px rgba(42,10,14,.55)}
+
+/* oltin lenta o'zgarishsiz (kontrast). Menyu: qora fon, taom rasmlari bo'lak-bo'lak ko'rinib turadi */
+.band-menu{background:#0E0506}
+.band-menu::before{inset:0;background:radial-gradient(circle at 1px 1px,rgba(245,181,46,.07) 1.2px,transparent 1.4px) 0 0/26px 26px}
+.band-menu::after{inset:0;height:auto;background:
+  var(--img-menu) 100% 0/760px auto no-repeat,
+  var(--img-end) 0 1300px/760px auto no-repeat,
+  var(--img-wings) 100% 2600px/760px auto no-repeat,
+  var(--img-lavash) 0 3900px/760px auto no-repeat,
+  var(--img-hero) 100% 5200px/760px auto no-repeat;
+  opacity:.34;filter:blur(3px) saturate(1.2);-webkit-mask-image:none;mask-image:none}
+.band-menu .menu{padding-top:36px}
+.cats{background:rgba(14,5,6,.82)}
+
+/* oxirgi taklif: rasm aniqroq */
+.finale::before{width:56%;opacity:.5}
+
+/* pastki qism */
+.foot-band{background:#0A0304}
+
+@media (max-width:720px){
+  .band-hero{background:linear-gradient(180deg,rgba(30,10,13,.55),#1E0A0D 70%),var(--bg)}
+  .band-hero::before{inset:0;opacity:.4;-webkit-mask-image:linear-gradient(#000,transparent 85%);mask-image:linear-gradient(#000,transparent 85%)}
+  .band-menu::after{background:
+    var(--img-menu) 100% 0/420px auto no-repeat,
+    var(--img-end) 0 1500px/420px auto no-repeat,
+    var(--img-wings) 100% 3000px/420px auto no-repeat,
+    var(--img-lavash) 0 4500px/420px auto no-repeat,
+    var(--img-hero) 100% 6000px/420px auto no-repeat;opacity:.3}
+  .band-tiles{padding-top:36px}
+}
+.band-tiles .tile-l{color:var(--tx)}
+.band-tiles .tile-l small{color:var(--mu)}
+
+/* Fon rasmlari: faqat yozuvsiz toza taom fotolari (kategoriya rasmlari) */
+:root{--img-hero:url(/images/cat-chicken.webp);--img-menu:url(/images/cat-burger.webp);--img-end:url(/images/cat-pizza.webp);--img-wings:url(/images/cat-lavash.webp);--img-lavash:url(/images/cat-xachapuri.webp);--img-extra:url(/images/cat-qoshimchalar.webp)}
+.band-menu::after{background:
+  var(--img-menu) 100% 0/760px auto no-repeat,
+  var(--img-end) 0 1300px/760px auto no-repeat,
+  var(--img-hero) 100% 2600px/760px auto no-repeat,
+  var(--img-wings) 0 3900px/760px auto no-repeat,
+  var(--img-extra) 100% 5200px/760px auto no-repeat}
+@media (max-width:720px){
+  .band-menu::after{background:
+    var(--img-menu) 100% 0/420px auto no-repeat,
+    var(--img-end) 0 1500px/420px auto no-repeat,
+    var(--img-hero) 100% 3000px/420px auto no-repeat,
+    var(--img-wings) 0 4500px/420px auto no-repeat,
+    var(--img-extra) 100% 6000px/420px auto no-repeat}
+}
+
+/* menyu rasmlari: to'liq ko'rinadi (kvadrat rasm kesilmaydi), ixcham */
+.card-im{background:#1B090C}
+.card-im img{aspect-ratio:1/1;object-fit:contain;background:none}
+@media (min-width:721px){.card-im img{height:200px;width:100%;aspect-ratio:auto}}
+@media (max-width:720px){
+  .card-im{flex:0 0 118px;width:118px}
+  .card-im img{width:118px;height:118px;min-height:0;aspect-ratio:1/1}
+}
+@media (max-width:720px){.fbtn:not(.icon){flex:1 1 calc(50% - 5px)}.fbtn.gold{flex-basis:100%}}

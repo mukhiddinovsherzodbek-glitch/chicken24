@@ -369,6 +369,15 @@ def test_image_urls_versioned_like_index():
     assert code.count("versioned(") == 2  # ta'rif + media() ichida
 
 
+def test_site_image_version_matches_miniapp():
+    """chicken24.uz sayti ham rasmlarni Mini App bilan bir xil ?v= bilan so'raydi (Cloudflare keshi)."""
+    app = (MINIAPP / "app.js").read_text(encoding="utf-8")
+    site = (MINIAPP / "site" / "site.js").read_text(encoding="utf-8")
+    app_v = re.search(r"const ASSET_VERSION = '(\d+)';", app).group(1)
+    assert re.search(r"const IMG_VERSION = '(\d+)';", site).group(1) == app_v
+    assert "?v=${IMG_VERSION}" in site
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

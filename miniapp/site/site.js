@@ -130,7 +130,13 @@
     if (Array.isArray(list) && list.length) return list.join(' · ');
     return (lang === 'ru' && i.desc_ru) || i.desc || '';
   };
-  const imgUrl = (p) => '/' + String(p || '').replace(/^\/+/, '');
+  // Rasm URL'iga ?v= (Cloudflare chicken24.uz uchun rasmlarni 1 kun keshlaydi). Rasm nomini o'zgartirmasdan
+  // almashtirilsa - shu raqamni oshiring (Mini App'dagi app.js ASSET_VERSION bilan bir xil tuting).
+  const IMG_VERSION = '21';
+  const imgUrl = (p) => {
+    const path = '/' + String(p || '').replace(/^\/+/, '');
+    return path.includes('?') ? path : `${path}?v=${IMG_VERSION}`;
+  };
 
   // ---------------------------------------------------------------- savat
   function saveCart() { store.set('c24_cart', cart); }
@@ -172,11 +178,35 @@
     for (const c of menu.categories) {
       const its = menu.items.filter((i) => i.category === c.id);
       if (!its.length) continue;
-      cats.append(el('a', { href: '#cat-' + c.id, text: catName(c) }));
+      cats.append(el('a', { href: '#cat-' + c.id, 'data-cat': c.id, text: catName(c) }));
       host.append(el('section', { class: 'sec', id: 'cat-' + c.id },
         el('h2', {}, catName(c), el('small', { text: `${entries(its).length} ${t('cnt')}` })),
-        el('div', { class: 'grid' }, entries(its).map((e) => (e.length > 1 ? groupCard(e) : card(e[0]))))));
+        el('div', { class: 'grid' + (c.id.includes('kombo') ? ' combo' : '') }, entries(its).map((e) => (e.length > 1 ? groupCard(e) : card(e[0]))))));
     }
+    // Kombolar: tarkibi ustun bo'lib, har bir qismi alohida qatorda
+    host.querySelectorAll('.combo .card p').forEach((p) => {
+      const parts = p.textContent.split(' · ').map((x) => x.trim()).filter(Boolean);
+      if (parts.length < 2) return;
+      const ul = el('ul', { class: 'parts' }, parts.map((x) => el('li', { text: x })));
+      p.replaceWith(ul);
+    });
+    spyCats();
+  }
+  // Pastga aylantirganda tepadagi kategoriya tugmasi yonib turadi
+  let spy = null;
+  function spyCats() {
+    if (spy) spy.disconnect();
+    if (!('IntersectionObserver' in window)) return;
+    const links = new Map([...document.querySelectorAll('#cats a')].map((a) => [a.dataset.cat, a]));
+    spy = new IntersectionObserver((es) => {
+      for (const e of es) {
+        if (!e.isIntersecting) continue;
+        links.forEach((a, id) => a.toggleAttribute('aria-current', 'cat-' + id === e.target.id));
+        const a = links.get(e.target.id.slice(4)), bar = $('cats');
+        if (a && bar.scrollWidth > bar.clientWidth) bar.scrollTo({ left: a.offsetLeft - 24, behavior: 'smooth' });
+      }
+    }, { rootMargin: '-150px 0px -65% 0px' });
+    document.querySelectorAll('#menuList .sec').forEach((n) => spy.observe(n));
   }
   // Bir xil nomli, faqat miqdori farq qiladigan taomlar (group) bitta kartaga yig'iladi
   const groupSel = new Map();   // group -> tanlangan taom id (til almashganda ham saqlanadi)
@@ -196,7 +226,7 @@
     const d = itemDesc(cur);
     const card = el('article', { class: 'card grouped', 'data-group': key },
       el('div', { class: 'card-im' },
-        el('img', { src: imgUrl(cur.image), alt: key, loading: 'lazy', width: 400, height: 300 }),
+        el('img', { src: imgUrl(cur.image), alt: key, loading: 'lazy', width: 400, height: 400 }),
         el('span', { class: 'price', text: sum(cur.price) })),
       el('div', { class: 'card-b' },
         el('h3', { text: key }),
@@ -213,7 +243,7 @@
     const d = itemDesc(i);
     return el('article', { class: 'card', 'data-id': i.id },
       el('div', { class: 'card-im' },
-        el('img', { src: imgUrl(i.image), alt: '', loading: 'lazy', width: 400, height: 300 }),
+        el('img', { src: imgUrl(i.image), alt: '', loading: 'lazy', width: 400, height: 400 }),
         el('span', { class: 'price', text: sum(i.price) })),
       el('div', { class: 'card-b' },
         el('h3', { text: i.name }),
@@ -274,7 +304,7 @@
   }
   function renderLanding() {
     const deal = $('deal');
-    dealList = menu.items.filter((i) => DEAL_CATS.includes(i.category)).slice(0, 6);
+    dealList = menu.items.filter((i) => DEAL_CATS.includes(i.category));
     dealIdx = Math.min(dealIdx, Math.max(0, dealList.length - 1));
     deal.hidden = !dealList.length;
     const dots = $('dealDots');
