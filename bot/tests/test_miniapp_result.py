@@ -357,6 +357,18 @@ def test_scripts_loaded_in_order_with_same_version():
     assert len(versions) == 1 and int(versions.pop()) >= 15
 
 
+
+def test_image_urls_versioned_like_index():
+    """Rasmlar 1 kun keshlanadi (_headers) - rasm URL'iga index.html dagi bilan bir xil ?v= qo'shiladi."""
+    html = (MINIAPP / "index.html").read_text(encoding="utf-8")
+    code = (MINIAPP / "app.js").read_text(encoding="utf-8")
+    (version,) = set(re.findall(r'\?v=(\d+)', html))
+    assert re.search(r"const ASSET_VERSION = '(\d+)';", code).group(1) == version
+    body = code[code.index("function media("):code.index("function emptyState(")]
+    assert "src = versioned(src);" in body
+    assert code.count("versioned(") == 2  # ta'rif + media() ichida
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

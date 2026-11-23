@@ -8,6 +8,9 @@
 (() => {
   // ---------------------------------------------------------------- sozlamalar
   const MENU_URL = 'menu.json';
+  // Rasm URL'lariga ?v= qo'shiladi: _headers'da rasmlar 1 kun keshlanadi, shuning uchun rasm fayli nomini
+  // o'zgartirmasdan almashtirilsa - shu raqamni (va index.html dagi ?v= ni, ikkalasi bir xil) oshiring.
+  const ASSET_VERSION = '19';
   const LIMITS = {
     nameMin: 2,
     nameMax: 50,
@@ -985,6 +988,12 @@
 
   /** Rasm + fallback: yuklanguncha gradient, 2 marta qayta urinishdan keyin ham bo'lmasa emoji. */
   // Kategoriya rasmlari 800x600 (4:3), taom rasmlari 600x600 (1:1)
+  /** Lokal rasm yo'liga ?v=ASSET_VERSION (tashqi https:// yoki allaqachon ?li manzilga tegmaydi). */
+  function versioned(src) {
+    if (/^[a-z]+:/i.test(src) || src.includes('?')) return src;
+    return `${src}?v=${ASSET_VERSION}`;
+  }
+
   function media(src, emoji, alt, extraClass, width, height) {
     const wrap = h('div', { class: 'media ' + (extraClass || '') },
       h('span', { class: 'media-fallback', 'aria-hidden': 'true' }, emoji || '🍽️'));
@@ -992,6 +1001,7 @@
       wrap.classList.add('failed');
       return wrap;
     }
+    src = versioned(src);
     const img = h('img', { src, alt, loading: 'lazy', decoding: 'async', width: width || 800, height: height || 600 });
     let attempt = 0;
     img.addEventListener('load', () => wrap.classList.add('loaded'));
