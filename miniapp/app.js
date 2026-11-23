@@ -10,7 +10,7 @@
   const MENU_URL = 'menu.json';
   // Rasm URL'lariga ?v= qo'shiladi: _headers'da rasmlar 1 kun keshlanadi, shuning uchun rasm fayli nomini
   // o'zgartirmasdan almashtirilsa - shu raqamni (va index.html dagi ?v= ni, ikkalasi bir xil) oshiring.
-  const ASSET_VERSION = '19';
+  const ASSET_VERSION = '20';
   const LIMITS = {
     nameMin: 2,
     nameMax: 50,
