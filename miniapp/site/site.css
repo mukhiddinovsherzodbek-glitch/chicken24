@@ -43,7 +43,13 @@ h1 span{display:block}
 
 .deal{position:relative;transform:rotate(-2.2deg);background:var(--s1);border-radius:30px;padding:14px 14px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.65);animation:settle .9s cubic-bezier(.2,.9,.3,1.15) both}
 @keyframes settle{from{transform:translateY(-34px) rotate(5deg);opacity:0}to{transform:rotate(-2.2deg);opacity:1}}
-.deal>img{width:100%;height:auto;border-radius:22px;background:var(--s2)}
+.deal-swap{transition:opacity .22s ease,transform .22s ease}
+.deal-swap.out{opacity:0;transform:translateY(6px)}
+.deal-dots{display:flex;justify-content:center;gap:4px;margin-top:6px}
+.deal-dots button{position:relative;width:28px;height:28px;border:0;background:none;cursor:pointer;padding:0}
+.deal-dots button::before{content:'';position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--line);transition:background .2s,transform .2s}
+.deal-dots button[aria-current=true]::before{background:var(--ac);transform:scale(1.3)}
+.deal-swap>img{width:100%;height:auto;border-radius:22px;background:var(--s2)}
 .stamp{position:absolute;z-index:2;top:-26px;right:-20px;width:112px;height:112px;border-radius:50%;background:var(--ac);color:var(--act);display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(11deg);box-shadow:0 10px 24px rgba(0,0,0,.4);text-align:center;line-height:1.1}
 .stamp b{font:800 27px var(--hf)}.stamp span{font-size:13px;font-weight:600}
 .deal-b{padding:18px 8px 0;display:flex;flex-direction:column;gap:8px}
@@ -76,7 +82,7 @@ h1 span{display:block}
 .cats{display:flex;gap:8px;overflow-x:auto;padding:10px 0 14px;position:sticky;top:72px;z-index:10;background:var(--bg)}
 .cats a{flex:none;display:flex;align-items:center;min-height:44px;padding:8px 18px;border-radius:999px;border:1px solid var(--line);background:var(--s1);text-decoration:none;font-weight:600;font-size:15px}
 .cats a:hover{border-color:var(--ac);color:var(--ac)}
-.sec{padding-top:36px}
+.sec{padding-top:36px;scroll-margin-top:96px}
 .sec h2{margin:0 0 18px;font:800 clamp(26px,3.4vw,36px) var(--hf);display:flex;align-items:baseline;gap:12px}
 .sec h2 small{font:400 15px var(--bf);color:var(--mu)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
@@ -161,3 +167,26 @@ legend{font-weight:600;font-size:15px;padding:0 0 6px}
 @media (max-width:359px){.brand span{display:none}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.deal{animation:none}.tile img{transition:none}}
 .tile-l small{white-space:nowrap}
+
+/* miqdor tanlash (bir xil taom, turli miqdor) */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:var(--s1);color:var(--tx);font:600 14px var(--bf,inherit);cursor:pointer}
+.chip:hover{border-color:var(--ac)}
+.chip[aria-pressed=true]{background:var(--ac);border-color:var(--ac);color:var(--act)}
+.chip-q{font-style:normal;font-weight:800;font-size:12px;min-width:18px;height:18px;line-height:18px;text-align:center;border-radius:9px;background:var(--ac);color:var(--act)}
+.chip[aria-pressed=true] .chip-q{background:var(--act);color:var(--ac)}
+.chip-q[hidden]{display:none}
+
+/* telefon: ixcham gorizontal kartalar - ko'proq taom bir ekranda, matn kesilmaydi */
+@media (max-width:720px){
+  .grid{grid-template-columns:1fr;gap:12px}
+  .card{flex-direction:row;align-items:stretch;border-radius:18px}
+  .card-im{flex:0 0 112px;width:112px}
+  .card-im img{width:112px;height:100%;min-height:128px;aspect-ratio:auto}
+  .card-im .price{left:6px;right:6px;bottom:6px;padding:4px 6px;text-align:center;font-size:13px}
+  .card-b{padding:12px 12px 12px;min-width:0;gap:6px}
+  .card h3{font-size:16px;overflow-wrap:anywhere}
+  .card p{font-size:13px}
+  .chips{gap:5px}
+  .chip{min-height:34px;padding:4px 11px;font-size:13px}
+}

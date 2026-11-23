@@ -14,3 +14,7 @@
 
 /images/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# Sayt (chicken24.uz) fayllari har ochilganda tekshiriladi: yangilanish mijozga darhol yetadi.
+/site/*
+  Cache-Control: no-cache

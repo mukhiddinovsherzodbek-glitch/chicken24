@@ -63,7 +63,7 @@
     'how.s3t': "Naqd to'lang", 'how.s3p': "Buyurtma eshigingizgacha keladi, to'lov yetkazilganda.",
     'end.t': 'Och qoldingizmi? Soat 03:00 gacha yetkazamiz.', 'end.cta': 'Buyurtma berish',
     'foot.hours': 'Har kuni 10:00–03:00', 'foot.tg': 'Telegram botda ham buyurtma bering', cnt: 'ta',
-    km: 'km', feeTbd: 'masofaga qarab', totalNoFee: 'Jami (yetkazishsiz)', 'foot.follow': 'Bizni kuzating',
+    km: 'km', feeTbd: 'masofaga qarab', totalNoFee: 'Jami (yetkazishsiz)', 'foot.follow': 'Bizni kuzating', 'foot.fb': 'Taklif va shikoyat',
   });
   Object.assign(T.ru, {
     'nav.how': 'Как заказать',
@@ -77,7 +77,7 @@
     'how.s3t': 'Оплатите наличными', 'how.s3p': 'Заказ приедет к двери, оплата при получении.',
     'end.t': 'Проголодались? Доставляем до 03:00.', 'end.cta': 'Заказать',
     'foot.hours': 'Ежедневно 10:00–03:00', 'foot.tg': 'Заказывайте и в Telegram-боте', cnt: 'блюд',
-    km: 'км', feeTbd: 'по расстоянию', totalNoFee: 'Итого (без доставки)', 'foot.follow': 'Мы в соцсетях',
+    km: 'км', feeTbd: 'по расстоянию', totalNoFee: 'Итого (без доставки)', 'foot.follow': 'Мы в соцсетях', 'foot.fb': 'Предложения и жалобы',
   });
 
   const store = {
@@ -174,9 +174,40 @@
       if (!its.length) continue;
       cats.append(el('a', { href: '#cat-' + c.id, text: catName(c) }));
       host.append(el('section', { class: 'sec', id: 'cat-' + c.id },
-        el('h2', {}, catName(c), el('small', { text: `${its.length} ${t('cnt')}` })),
-        el('div', { class: 'grid' }, its.map(card))));
+        el('h2', {}, catName(c), el('small', { text: `${entries(its).length} ${t('cnt')}` })),
+        el('div', { class: 'grid' }, entries(its).map((e) => (e.length > 1 ? groupCard(e) : card(e[0]))))));
     }
+  }
+  // Bir xil nomli, faqat miqdori farq qiladigan taomlar (group) bitta kartaga yig'iladi
+  const groupSel = new Map();   // group -> tanlangan taom id (til almashganda ham saqlanadi)
+  function entries(its) {
+    const out = [], seen = new Map();
+    for (const i of its) {
+      if (!i.group) { out.push([i]); continue; }
+      if (seen.has(i.group)) seen.get(i.group).push(i);
+      else { const g = [i]; seen.set(i.group, g); out.push(g); }
+    }
+    return out;
+  }
+  const variantName = (i) => (lang === 'ru' && i.variant_ru) || i.variant || i.name;
+  function groupCard(vs) {
+    const key = vs[0].group;
+    const cur = vs.find((v) => v.id === groupSel.get(key)) || vs[0];
+    const d = itemDesc(cur);
+    const card = el('article', { class: 'card grouped', 'data-group': key },
+      el('div', { class: 'card-im' },
+        el('img', { src: imgUrl(cur.image), alt: key, loading: 'lazy', width: 400, height: 300 }),
+        el('span', { class: 'price', text: sum(cur.price) })),
+      el('div', { class: 'card-b' },
+        el('h3', { text: key }),
+        el('div', { class: 'chips', role: 'group', 'aria-label': key },
+          vs.map((v) => el('button', { type: 'button', class: 'chip', 'data-id': v.id, 'aria-pressed': String(v.id === cur.id),
+            onclick: () => { groupSel.set(key, v.id); const n = groupCard(vs); card.replaceWith(n); renderMenuButtons(); } },
+            variantName(v), el('i', { class: 'chip-q' })))),
+        el('p', { text: d || '' }),
+        el('div', { class: 'card-f' }, el('div', { class: 'ctl' }))));
+    card.dataset.id = cur.id;
+    return card;
   }
   function card(i) {
     const d = itemDesc(i);
@@ -193,6 +224,10 @@
     document.querySelectorAll('.card').forEach((c) => {
       const id = c.dataset.id, q = cart[id] || 0, ctl = c.querySelector('.ctl');
       ctl.replaceChildren(ctlFor(id, q));
+      c.querySelectorAll('.chip').forEach((b) => {
+        const n = cart[b.dataset.id] || 0, badge = b.querySelector('.chip-q');
+        badge.textContent = n ? String(n) : ''; badge.hidden = !n;
+      });
     });
     if (dealId) $('dealCtl').replaceChildren(ctlFor(dealId, cart[dealId] || 0));
   }
@@ -210,25 +245,50 @@
 
   // ---------------------------------------------------------------- bosh sahifa: aksiya va mozaika
   let dealId = null;
-  function renderLanding() {
-    const deal = $('deal');
-    const pick = byId.get('kombo-1') || menu.items.find((i) => i.category === 'kombo');
-    dealId = pick ? pick.id : null;
-    deal.hidden = !pick;
-    if (pick) {
+  // Bosh sahifadagi kartochka: kombo va aksiya taomlari navbat bilan almashinadi
+  const DEAL_CATS = ['kombo', 'aksiya', 'aksiyalar', 'akciya'];
+  let dealList = [], dealIdx = 0, dealTimer = null;
+  function showDeal(n, animate) {
+    const pick = dealList[n];
+    if (!pick) return;
+    dealIdx = n; dealId = pick.id;
+    const fill = () => {
       const img = $('dealImg');
       img.src = imgUrl(pick.image); img.alt = pick.name;
       $('dealName').textContent = pick.name;
       $('dealDesc').textContent = itemDesc(pick);
       $('dealPrice').textContent = sum(pick.price);
-    }
+      $('dealCtl').replaceChildren(ctlFor(pick.id, cart[pick.id] || 0));
+      document.querySelectorAll('#dealDots button').forEach((d, i) => d.setAttribute('aria-current', String(i === n)));
+    };
+    const box = $('dealSwap');
+    if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      box.classList.add('out');
+      setTimeout(() => { fill(); box.classList.remove('out'); }, 220);
+    } else fill();
+  }
+  function startDeal() {
+    clearInterval(dealTimer);
+    if (dealList.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    dealTimer = setInterval(() => { if (!document.hidden) showDeal((dealIdx + 1) % dealList.length, true); }, 4500);
+  }
+  function renderLanding() {
+    const deal = $('deal');
+    dealList = menu.items.filter((i) => DEAL_CATS.includes(i.category)).slice(0, 6);
+    dealIdx = Math.min(dealIdx, Math.max(0, dealList.length - 1));
+    deal.hidden = !dealList.length;
+    const dots = $('dealDots');
+    dots.replaceChildren(...dealList.map((p, i) => el('button', { type: 'button', 'aria-label': p.name, onclick: () => { showDeal(i, true); startDeal(); } })));
+    dots.hidden = dealList.length < 2;
+    showDeal(dealIdx, false);
+    startDeal();
     const host = $('tiles');
     host.replaceChildren();
     const order = ['chicken', 'burger', 'lavash', 'pizza', 'kombo', 'xachapuri', 'qoshimchalar'];
     const cats = order.map((id) => menu.categories.find((c) => c.id === id)).filter(Boolean);
     for (const c of menu.categories) if (!cats.includes(c)) cats.push(c);
     cats.forEach((c, n) => {
-      const count = menu.items.filter((i) => i.category === c.id).length;
+      const count = entries(menu.items.filter((i) => i.category === c.id)).length;
       const cls = 'tile' + (c.id === 'chicken' ? ' big' : (n >= cats.length - 2 && cats.length >= 7 ? ' wide' : ''));
       host.append(el('a', { class: cls, href: '#cat-' + c.id },
         el('img', { src: imgUrl(c.image), alt: '', loading: 'lazy' }),
