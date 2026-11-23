@@ -226,9 +226,9 @@
     const d = itemDesc(cur);
     const card = el('article', { class: 'card grouped', 'data-group': key },
       el('div', { class: 'card-im' },
-        el('img', { src: imgUrl(cur.image), alt: key, loading: 'lazy', width: 400, height: 400 }),
-        el('span', { class: 'price', text: sum(cur.price) })),
+        el('img', { src: imgUrl(cur.image), alt: key, loading: 'lazy', width: 400, height: 400 })),
       el('div', { class: 'card-b' },
+        el('span', { class: 'card-price', text: sum(cur.price) }),
         el('h3', { text: key }),
         el('div', { class: 'chips', role: 'group', 'aria-label': key },
           vs.map((v) => el('button', { type: 'button', class: 'chip', 'data-id': v.id, 'aria-pressed': String(v.id === cur.id),
@@ -243,9 +243,9 @@
     const d = itemDesc(i);
     return el('article', { class: 'card', 'data-id': i.id },
       el('div', { class: 'card-im' },
-        el('img', { src: imgUrl(i.image), alt: '', loading: 'lazy', width: 400, height: 400 }),
-        el('span', { class: 'price', text: sum(i.price) })),
+        el('img', { src: imgUrl(i.image), alt: '', loading: 'lazy', width: 400, height: 400 })),
       el('div', { class: 'card-b' },
+        el('span', { class: 'card-price', text: sum(i.price) }),
         el('h3', { text: i.name }),
         d ? el('p', { text: d }) : null,
         el('div', { class: 'card-f' }, el('div', { class: 'ctl' }))));
