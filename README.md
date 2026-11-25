@@ -99,9 +99,13 @@ cd bot
 Get-ChildItem tests\test_*.py | ForEach-Object { .\venv\Scripts\python.exe $_.FullName | Select-Object -Last 1 }
 python check_menu.py
 ```
-Har fayl oxirida `N/N test o'tdi` chiqishi kerak. PostgreSQL testlari faqat `TEST_DATABASE_URL` (alohida test
-bazasi) berilganda ishlaydi, aks holda o'tkazib yuboriladi. Kodni `git push` qilishdan oldin testlarni o'tkazing —
-Render `main` ga tushgan har o'zgarishni darhol joylaydi.
+Har fayl oxirida `N/N test o'tdi` chiqishi kerak. PostgreSQL testlari faqat `bot/.env.test` faylida
+`TEST_DATABASE_URL` (alohida TEST bazasi, formati — `bot/tests/pgtest.py` boshida) bo'lsa ishlaydi, aks holda
+o'tkazib yuboriladi (SKIP). Ular faqat vaqtinchalik `c24test_*` sxemalarda ishlaydi va `public` ga tegmaydi.
+Kodni `git push` qilishdan oldin testlarni o'tkazing — Render `main` ga tushgan har o'zgarishni darhol joylaydi.
+
+Bazani boshqa Postgres'ga ko'chirish (Neon → Supabase): `tools/migrate_pg_to_pg.py`, yo'riqnoma —
+[docs/kurer/MIGRATSIYA.md](docs/kurer/MIGRATSIYA.md).
 
 ## Xavfsizlik (qisqacha)
 

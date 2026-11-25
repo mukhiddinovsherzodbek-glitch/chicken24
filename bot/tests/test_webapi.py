@@ -176,3 +176,20 @@ def test_web_quote_rate_limit():
                  for _ in range(webapi.QUOTE_LIMIT + 1)]
         assert codes[:webapi.QUOTE_LIMIT] == [200] * webapi.QUOTE_LIMIT and codes[-1] == 429
     run(with_api(go))
+
+
+if __name__ == "__main__":
+    import logging
+
+    logging.disable(logging.CRITICAL)
+    tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
+    failed = 0
+    for name, fn in tests:
+        try:
+            fn()
+            print(f"OK    {name}")
+        except Exception as exc:  # noqa: BLE001
+            failed += 1
+            print(f"FAIL  {name}: {exc!r}")
+    print(f"\n{len(tests) - failed}/{len(tests)} test o'tdi")
+    sys.exit(1 if failed else 0)

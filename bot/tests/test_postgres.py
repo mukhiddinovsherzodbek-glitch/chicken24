@@ -1,22 +1,18 @@
-"""PostgreSQL testlari: TEST_DATABASE_URL berilganda ishlaydi, bo'lmasa o'tkazib yuboriladi (SKIP).
+"""PostgreSQL testlari: bot/.env.test da TEST_DATABASE_URL bo'lsa ishlaydi, bo'lmasa o'tkazib yuboriladi (SKIP).
 
-    $env:TEST_DATABASE_URL = "postgresql://..."   # alohida TEST bazasi (ishchi baza emas!)
-    .\\venv\\Scripts\\python.exe tests\\test_postgres.py
+    .\\venv\\Scripts\\python.exe tests\\test_postgres.py      # .env.test formati: tests/pgtest.py
 
 Har test o'z vaqtinchalik sxemasida ishlaydi (c24test_<tasodifiy>) va oxirida o'sha sxema o'chiriladi -
-bazadagi boshqa jadvallarga tegilmaydi.
+public va bazadagi boshqa jadvallarga tegilmaydi (run_tests oldin/keyin tekshiradi).
 
 Asosiy g'oya - bir xil ssenariy SQLite va Postgres'da bajariladi va natijalar solishtiriladi.
 """
 from __future__ import annotations
 
 import asyncio
-import os
-import secrets
 import sqlite3
 import sys
 import tempfile
-from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -29,39 +25,23 @@ sys.path.insert(0, str(ROOT / "tools"))
 import backup  # noqa: E402
 import business  # noqa: E402
 import config as config_module  # noqa: E402
-from db import TABLES, Database, DatabaseError, pg_connect_params  # noqa: E402
+from db import TABLES, Database, DatabaseError, enable_rls  # noqa: E402
 from handlers import (  # noqa: E402
     build_webapp_url,
     on_cancel_order,
     on_web_app_data,
     resend_unnotified,
 )
+from pgtest import DSN, SKIP_TEXT, pg_schema, run_tests  # noqa: E402
 from test_flow import Env, FakeBot, FakeCallback, good, make_message, NO_LOC  # noqa: E402
 
 business.is_open_now = lambda: True
 
-DSN = os.environ.get("TEST_DATABASE_URL", "").strip()
 BIG_USER = 7_123_456_789  # Telegram ID 2^31 dan katta bo'lishi mumkin
 
 
 def run(coro):
     return asyncio.run(coro)
-
-
-@asynccontextmanager
-async def pg_schema():
-    """Vaqtinchalik sxema: shu sxemaga ulangan Database qaytaradi, oxirida sxema o'chiriladi."""
-    import asyncpg
-
-    schema = "c24test_" + secrets.token_hex(6)
-    dsn, ssl = pg_connect_params(DSN)
-    admin = await asyncpg.connect(dsn, ssl=ssl, statement_cache_size=0)
-    await admin.execute(f"CREATE SCHEMA {schema}")
-    try:
-        yield schema, {"search_path": schema}
-    finally:
-        await admin.execute(f"DROP SCHEMA {schema} CASCADE")
-        await admin.close()
 
 
 def pg_db(settings: dict) -> Database:
@@ -138,7 +118,7 @@ def normalize(out: dict) -> dict:
 
 def skip() -> bool:
     if not DSN:
-        print("SKIP: TEST_DATABASE_URL berilmagan - Postgres testlari o'tkazib yuborildi")
+        print(SKIP_TEXT)
         return True
     return False
 
@@ -278,7 +258,7 @@ def test_backup_from_postgres_is_sqlite_file():
 
     ok, changed, too_big, bot, tables = run(go())
     assert ok is True and changed is False and too_big is False
-    assert len(bot.docs) == 1 and "juda katta" in bot.msgs[-1] and "Neon" in bot.msgs[-1]
+    assert len(bot.docs) == 1 and "juda katta" in bot.msgs[-1] and "paneli orqali eksport" in bot.msgs[-1]
     document, caption = bot.docs[0]
     assert document.filename.endswith(".db") and "Buyurtmalar: 2 ta" in caption
     path = Path(tempfile.mkdtemp()) / "restore.db"
@@ -389,22 +369,60 @@ def test_resend_after_migration_sends_unnotified():
     assert run(go()) == (1, 1)
 
 
+# ------------------------------------------------------------ RLS (SPEC S19)
+
+def test_rls_enabled_and_owner_unaffected():
+    """Har jadvalda RLS yoqiq, FORCE yo'q, jadval egasi = bot ulanadigan foydalanuvchi -> bot cheklanmaydi.
+    Supabase'da (anon roli bo'lsa) tashqi API roli siyosatsiz jadvaldan hech narsa ko'rmaydi."""
+    if skip():
+        return
+
+    async def go():
+        async with pg_schema() as (schema, settings):
+            env = Env()
+            env.db = pg_db(settings)
+            await env.db.connect()
+            await env.db.set_meta("k", "v")
+            await on_web_app_data(make_message(BIG_USER, good())[0], **env.deps(FakeBot()), lang="uz")
+            await env.db.close()
+            db2 = pg_db(settings)
+            await db2.connect()  # ikkinchi ulanish: RLS allaqachon yoqiq - qayta ALTER yo'q
+            meta = await db2.get_meta("k")
+            order = await db2.get_order(1)
+            async with db2.pg_connection() as con:
+                rows = await con.fetch(
+                    "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, "
+                    "pg_get_userbyid(c.relowner) = current_user AS owned "
+                    "FROM pg_class c WHERE c.relnamespace = $1::text::regnamespace AND c.relkind = 'r'", schema)
+                again = await enable_rls(con)
+                anon_rows = None
+                if await con.fetchval("SELECT pg_has_role(current_user, oid, 'MEMBER') FROM pg_roles "
+                                      "WHERE rolname = 'anon'"):
+                    tr = con.transaction()
+                    await tr.start()
+                    try:  # hammasi ROLLBACK bilan qaytariladi - hech qanday GRANT qolmaydi
+                        await con.execute(f'GRANT USAGE ON SCHEMA "{schema}" TO anon')
+                        await con.execute(f'GRANT SELECT ON "{schema}".orders TO anon')
+                        await con.execute("SET LOCAL ROLE anon")
+                        anon_rows = await con.fetchval(f'SELECT COUNT(*) FROM "{schema}".orders')
+                    finally:
+                        await tr.rollback()
+            await db2.close()
+            return meta, order, rows, again, anon_rows
+
+    meta, order, rows, again, anon_rows = run(go())
+    assert meta == "v" and order is not None and order["user_id"] == BIG_USER, "bot o'qiydi va yozadi"
+    assert {r["relname"] for r in rows} == set(TABLES)
+    assert all(r["relrowsecurity"] for r in rows), "hamma jadvalda RLS"
+    assert not any(r["relforcerowsecurity"] for r in rows), "FORCE yo'q - egasi cheklanmaydi"
+    assert all(r["owned"] for r in rows), "jadvallar egasi - bot foydalanuvchisi"
+    assert again == [], "idempotent: qayta yoqilmaydi"
+    assert anon_rows in (None, 0), "anon roli siyosatsiz jadvaldan hech narsa ko'rmasligi kerak"
+
+
 if __name__ == "__main__":
     import logging
 
     logging.disable(logging.CRITICAL)
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
-    if not DSN:
-        print("SKIP: TEST_DATABASE_URL berilmagan - Postgres testlari o'tkazib yuborildi")
-        print(f"\n0/{len(tests)} test o'tdi ({len(tests)} SKIP)")
-        sys.exit(0)
-    failed = 0
-    for name, fn in tests:
-        try:
-            fn()
-            print(f"OK    {name}")
-        except Exception as exc:  # noqa: BLE001
-            failed += 1
-            print(f"FAIL  {name}: {exc!r}")
-    print(f"\n{len(tests) - failed}/{len(tests)} test o'tdi")
-    sys.exit(1 if failed else 0)
+    sys.exit(run_tests(tests, needs_db=lambda name: True))

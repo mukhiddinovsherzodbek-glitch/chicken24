@@ -1,7 +1,9 @@
 """Baza bilan ishlash: ikki backend, bitta interfeys.
 
 - SQLite (aiosqlite) - lokal rejim (DATABASE_URL berilmagan): avvalgidek bot/chicken24.db.
-- PostgreSQL (asyncpg, ulanishlar pool'i) - DATABASE_URL berilganda (masalan Neon, SSL bilan).
+- PostgreSQL (asyncpg, ulanishlar pool'i) - DATABASE_URL berilganda (Neon yoki Supabase, SSL bilan).
+  Postgres'da har jadvalda Row Level Security yoqiladi (siyosatsiz): bot jadval egasi sifatida ishlayveradi,
+  tashqi API rollari (Supabase anon/authenticated) hech narsa ko'rmaydi.
 
 Barcha so'rovlar parametrlangan (? belgisi; Postgres uchun avtomatik $1, $2 ... ga aylantiriladi).
 Vaqtlar ikkala bazada ham bir xil - UTC ISO 8601 matn (masalan 2026-11-19T10:00:00+00:00),
@@ -227,6 +229,8 @@ PRIMARY_KEYS = {
 }
 # Avtomatik ID (identity) ustunli jadvallar: ko'chirishdan keyin hisoblagich MAX(id) ga suriladi
 IDENTITY_TABLES = ("orders", "order_items")
+# Postgres: Row Level Security yoqiladigan jadvallar (SPEC S19) - TABLES bilan bir xil
+RLS_TABLES = tuple(TABLES)
 
 # Bekor qilish natijalari
 CANCEL_OK = "ok"
@@ -275,6 +279,8 @@ class PeriodStats:
 _LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 # asyncpg tanimaydigan (libpq'ga xos) parametrlar: qoldirilsa server sozlamasi deb yuborilib xato beradi
 _LIBPQ_ONLY_PARAMS = {"sslmode", "channel_binding", "sslrootcert", "sslcert", "sslkey", "gssencmode"}
+# sslrootcert nisbiy yo'li shu papkaga (bot/) nisbatan - ishga tushirilgan joyga bog'liq emas
+_BOT_DIR = Path(__file__).resolve().parent
 
 
 def is_postgres_url(url: str | None) -> bool:
@@ -285,25 +291,113 @@ def pg_connect_params(dsn: str) -> tuple[str, Any]:
     """DATABASE_URL -> (asyncpg uchun toza DSN, ssl).
 
     - sslmode=disable yoki lokal server (localhost) - SSL'siz.
-    - Qolgan hamma holat (Neon va boshqa tashqi serverlar) - SSL majburiy, sertifikat va xost tekshiriladi.
+    - Qolgan hamma holat (Neon, Supabase va boshqa tashqi serverlar) - SSL majburiy, sertifikat va xost
+      tekshiriladi (sslmode=require bo'lsa ham - libpq'dan qat'iyroq).
+    - sslrootcert=<fayl> berilsa - sertifikat SHU CA bilan tekshiriladi (Supabase o'z CA'si bilan imzolaydi:
+      Dashboard -> Database Settings -> SSL Configuration -> Download Certificate). Nisbiy yo'l - bot/ papkasidan.
     """
     import ssl as ssl_module
 
     parts = urlsplit(dsn)
     query = parse_qsl(parts.query, keep_blank_values=True)
     sslmode = next((v for k, v in query if k == "sslmode"), "").lower()
+    rootcert = next((v for k, v in query if k == "sslrootcert"), "").strip()
     clean_query = urlencode([(k, v) for k, v in query if k not in _LIBPQ_ONLY_PARAMS])
     clean = urlunsplit((parts.scheme, parts.netloc, parts.path, clean_query, parts.fragment))
     local = (parts.hostname or "") in _LOCAL_HOSTS
-    if sslmode == "disable" or (local and sslmode in ("", "allow", "prefer")):
+    if sslmode == "disable" or (local and sslmode in ("", "allow", "prefer") and not rootcert):
         return clean, False
-    return clean, ssl_module.create_default_context()
+    if not rootcert:
+        return clean, ssl_module.create_default_context()
+    cafile = Path(rootcert)
+    if not cafile.is_absolute():
+        cafile = _BOT_DIR / cafile
+    if not cafile.is_file():
+        raise DatabaseError(f"sslrootcert fayli topilmadi: {cafile.name}")
+    return clean, ssl_module.create_default_context(cafile=str(cafile))
+
+
+def dsn_problem(dsn: str) -> str | None:
+    """Manzil o'qib bo'lmaydigan bo'lsa - qisqa sabab (manzilning o'zi yoki parol qaytmaydi), aks holda None."""
+    try:
+        parts = urlsplit(dsn)
+        parts.port  # noqa: B018 - noto'g'ri port shu yerda ValueError beradi
+    except ValueError:
+        return ("manzil buzilgan: parol atrofida [ ] qavslar qolmaganini tekshiring "
+                "(parolda @ : / ? # [ ] % belgilari bo'lmasin)")
+    if not parts.hostname:
+        return "manzilda server (xost) yo'q"
+    return None
 
 
 def describe_dsn(dsn: str) -> str:
     """Logga yozish uchun: faqat xost va baza nomi (login/parol yo'q)."""
     parts = urlsplit(dsn)
     return f"{parts.hostname or 'localhost'}/{parts.path.lstrip('/') or '-'}"
+
+
+def split_server_settings(server_settings: dict[str, str] | None) -> tuple[dict[str, str], str | None]:
+    """server_settings -> (ulanish paketida yuboriladiganlar, search_path).
+
+    search_path ulanish paketida yuborilmaydi: pooler (Supabase Supavisor, PgBouncer) noma'lum parametrni
+    jim tashlab yuborishi mumkin - unda so'rovlar boshqa sxemaga (public) tushib ketardi. Uning o'rniga
+    ulanish har olinganda SET qilinadi va tekshiriladi (apply_search_path; pool ulanishni qaytarganda
+    RESET ALL qiladi). Ishchi bot search_path bermaydi.
+    """
+    settings = dict(server_settings or {})
+    return settings, settings.pop("search_path", None)
+
+
+async def apply_search_path(con: Any, search_path: str | None) -> None:
+    """Ulanishga search_path o'rnatadi va birinchi sxema haqiqatan joriy bo'lganini tekshiradi.
+    Mos kelmasa - xato: hech narsa yozilmaydi (testlar public sxemaga tegmasligi uchun)."""
+    if not search_path:
+        return
+    await con.execute("SELECT set_config('search_path', $1, false)", search_path)
+    expected = search_path.split(",")[0].strip().strip('"')
+    current = await con.fetchval("SELECT current_schema()")
+    if current != expected:
+        raise DatabaseError(f"search_path o'rnatilmadi (joriy sxema: {current!r}) - davom etilmadi")
+
+
+async def pg_connect(dsn: str, server_settings: dict[str, str] | None = None) -> Any:
+    """Bitta asyncpg ulanishi (ko'chirish vositalari va testlar uchun): Database bilan bir xil SSL va search_path."""
+    import asyncpg
+
+    clean, ssl = pg_connect_params(dsn)
+    settings, search_path = split_server_settings(server_settings)
+    try:
+        con = await asyncpg.connect(clean, ssl=ssl, statement_cache_size=0, timeout=30, command_timeout=120,
+                                    server_settings={"application_name": "chicken24-tool", **settings})
+    except asyncpg.PostgresError as exc:
+        raise clean_pg_error(exc) from None
+    try:
+        await apply_search_path(con, search_path)
+    except BaseException:
+        await con.close()
+        raise
+    return con
+
+
+async def enable_rls(con: Any, tables: Iterable[str] = RLS_TABLES) -> list[str]:
+    """Row Level Security (SPEC S19), idempotent: faqat hali yoqilmagan jadvallarda ALTER TABLE.
+    FORCE yo'q - jadval egasi (bot ulanadigan foydalanuvchi) cheklanmaydi. Qaytadi: yangi yoqilganlar.
+    Jadval egasi boshqa rol bo'lsa (ALTER ruxsati yo'q) - o'tkazib yuboriladi va ogohlantiriladi:
+    bot ishga tushishi shu sabab to'xtamasin."""
+    changed = []
+    for table in tables:
+        # Nomlar faqat doimiy ro'yxatdan; to_regclass search_path bo'yicha topadi (ALTER TABLE kabi)
+        row = await con.fetchrow(
+            "SELECT relrowsecurity, pg_has_role(current_user, relowner, 'MEMBER') AS owner "
+            "FROM pg_class WHERE oid = to_regclass($1)", table)
+        if row is None or row["relrowsecurity"]:
+            continue
+        if not row["owner"]:
+            logger.warning("RLS yoqilmadi: %s jadvalining egasi boshqa rol", table)
+            continue
+        await con.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+        changed.append(table)
+    return changed
 
 
 # ================================================================ backendlar
@@ -540,7 +634,13 @@ class Database:
 
         dsn, ssl = pg_connect_params(self._dsn)
         # Vaqtlar har doim "+00:00" qo'shimchali matn - sessiya vaqt zonasi natijaga ta'sir qilmaydi
-        settings = {"application_name": "chicken24-bot", **self._server_settings}
+        extra, search_path = split_server_settings(self._server_settings)
+        settings = {"application_name": "chicken24-bot", **extra}
+
+        async def setup(con: Any) -> None:
+            # Har acquire'da: pool ulanishni qaytarganda RESET ALL qiladi va SET qilingan search_path yo'qoladi
+            await apply_search_path(con, search_path)
+
         try:
             self._pool = await asyncpg.create_pool(
                 dsn,
@@ -552,6 +652,7 @@ class Database:
                 command_timeout=30,
                 timeout=30,
                 server_settings=settings,
+                setup=setup if search_path else None,  # ishchi bot: None (search_path bermaydi)
             )
             async with self._pool.acquire() as con:
                 async with con.transaction():
@@ -570,6 +671,8 @@ class Database:
                         logger.warning(DUPLICATE_REFS_WARNING)
                     else:
                         await con.execute(UNIQUE_REF_SQL)
+                    if await enable_rls(con):
+                        logger.info("Row Level Security yoqildi (barcha jadvallar)")
         except Exception as exc:
             if self._pool is not None:
                 await self._pool.close()

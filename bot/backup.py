@@ -64,7 +64,8 @@ async def send_backup(bot: Bot, cfg: config.Config, db: Database, *, reason: str
             await bot.send_message(
                 cfg.admin_id,
                 f"⚠️ Zaxira juda katta ({_size_text(len(data))}) — Telegram orqali yuborib bo'lmaydi. "
-                + ("Neon paneli orqali eksport qiling." if db.kind == "postgres" else "Bazani panel orqali yuklab oling."),
+                + ("Baza (Supabase/Neon) paneli orqali eksport qiling." if db.kind == "postgres"
+                   else "Bazani panel orqali yuklab oling."),
             )
         except Exception:
             logger.exception("Admin'ga ogohlantirish yuborilmadi")
